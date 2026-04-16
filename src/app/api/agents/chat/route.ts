@@ -16,7 +16,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
-    const { agentId, message, conversationId } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Corps de la requête invalide" },
+        { status: 400 }
+      );
+    }
+
+    const { agentId, message, conversationId } = body;
 
     if (!agentId || !message) {
       return NextResponse.json(
@@ -94,17 +104,22 @@ export async function POST(request: Request) {
     }
 
     // Call AI via z-ai-web-dev-sdk
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...conversationHistory,
-      ],
-    });
-
-    const assistantContent =
-      completion.choices?.[0]?.message?.content ||
-      "Désolé, je n'ai pas pu générer une réponse.";
+    let assistantContent: string;
+    try {
+      const zai = await ZAI.create();
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...conversationHistory,
+        ],
+      });
+      assistantContent =
+        completion.choices?.[0]?.message?.content ||
+        "Désolé, je n'ai pas pu générer une réponse.";
+    } catch (aiError) {
+      console.error("AI SDK error:", aiError);
+      assistantContent = "Désolé, le service IA est temporairement indisponible. Veuillez réessayer dans quelques instants.";
+    }
 
     // Save assistant response
     await db.chatMessage.create({

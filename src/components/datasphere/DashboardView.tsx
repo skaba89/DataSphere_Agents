@@ -76,6 +76,7 @@ export default function DashboardView() {
 
   useEffect(() => {
     const fetchDashboard = async () => {
+      if (!token) return;
       try {
         const res = await fetch('/api/dashboard', {
           headers: { Authorization: `Bearer ${token}` },

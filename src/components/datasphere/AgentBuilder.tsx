@@ -58,12 +58,12 @@ const iconOptions = [
 ];
 
 const colorOptions = [
-  { value: 'emerald', label: 'Émeraude', bg: 'bg-emerald-500' },
-  { value: 'amber', label: 'Ambre', bg: 'bg-amber-500' },
-  { value: 'violet', label: 'Violet', bg: 'bg-violet-500' },
-  { value: 'rose', label: 'Rose', bg: 'bg-rose-500' },
-  { value: 'cyan', label: 'Cyan', bg: 'bg-cyan-500' },
-  { value: 'orange', label: 'Orange', bg: 'bg-orange-500' },
+  { value: 'emerald', label: 'Émeraude', previewBg: 'bg-emerald-500', iconBg: 'bg-emerald-100 dark:bg-emerald-900/50', iconColor: 'text-emerald-600 dark:text-emerald-400' },
+  { value: 'amber', label: 'Ambre', previewBg: 'bg-amber-500', iconBg: 'bg-amber-100 dark:bg-amber-900/50', iconColor: 'text-amber-600 dark:text-amber-400' },
+  { value: 'violet', label: 'Violet', previewBg: 'bg-violet-500', iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-600 dark:text-violet-400' },
+  { value: 'rose', label: 'Rose', previewBg: 'bg-rose-500', iconBg: 'bg-rose-100 dark:bg-rose-900/50', iconColor: 'text-rose-600 dark:text-rose-400' },
+  { value: 'cyan', label: 'Cyan', previewBg: 'bg-cyan-500', iconBg: 'bg-cyan-100 dark:bg-cyan-900/50', iconColor: 'text-cyan-600 dark:text-cyan-400' },
+  { value: 'orange', label: 'Orange', previewBg: 'bg-orange-500', iconBg: 'bg-orange-100 dark:bg-orange-900/50', iconColor: 'text-orange-600 dark:text-orange-400' },
 ];
 
 const typeOptions = [
@@ -105,6 +105,11 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
       return;
     }
 
+    if (!token) {
+      toast.error('Session expirée. Veuillez vous reconnecter.');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch('/api/agents/create', {
@@ -133,7 +138,8 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
       setOpen(false);
       resetForm();
       onAgentCreated?.();
-    } catch {
+    } catch (err) {
+      console.error('Agent creation network error:', err);
       toast.error('Erreur réseau. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -148,6 +154,14 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
     setIcon('Bot');
     setColor('emerald');
   };
+
+  // Get preview styles based on selected color (static Tailwind classes)
+  const getColorStyles = (colorValue: string) => {
+    return colorOptions.find(c => c.value === colorValue) || colorOptions[0];
+  };
+
+  const currentColorStyles = getColorStyles(color);
+  const IconComp = iconOptions.find((o) => o.value === icon)?.Icon || Bot;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -173,11 +187,8 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wider font-semibold">Aperçu</p>
               <div className="flex items-center gap-3">
-                <div className={`p-2.5 rounded-xl bg-${color}-100 dark:bg-${color}-900/50`}>
-                  {(() => {
-                    const IconComp = iconOptions.find((o) => o.value === icon)?.Icon || Bot;
-                    return <IconComp className={`h-6 w-6 text-${color}-600 dark:text-${color}-400`} />;
-                  })()}
+                <div className={`p-2.5 rounded-xl ${currentColorStyles.iconBg}`}>
+                  <IconComp className={`h-6 w-6 ${currentColorStyles.iconColor}`} />
                 </div>
                 <div>
                   <h3 className="font-semibold">{name || 'Nom de l\'agent'}</h3>
@@ -248,7 +259,7 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
             <Label>Icône</Label>
             <div className="flex flex-wrap gap-2">
               {iconOptions.map((opt) => {
-                const IconComp = opt.Icon;
+                const OptIcon = opt.Icon;
                 return (
                   <button
                     key={opt.value}
@@ -259,7 +270,7 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
                         : 'border-transparent bg-muted/50 hover:border-emerald-200 dark:hover:border-emerald-800'
                     }`}
                   >
-                    <IconComp className="h-4 w-4" />
+                    <OptIcon className="h-4 w-4" />
                     <span className="text-sm">{opt.label}</span>
                     {icon === opt.value && <Check className="h-3 w-3 text-emerald-600" />}
                   </button>
@@ -285,7 +296,7 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
                       : 'border-transparent bg-muted/50 hover:border-emerald-200 dark:hover:border-emerald-800'
                   }`}
                 >
-                  <div className={`w-4 h-4 rounded-full ${opt.bg}`} />
+                  <div className={`w-4 h-4 rounded-full ${opt.previewBg}`} />
                   <span className="text-sm">{opt.label}</span>
                   {color === opt.value && <Check className="h-3 w-3 text-emerald-600" />}
                 </button>

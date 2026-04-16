@@ -54,6 +54,7 @@ export default function DocumentsView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDocuments = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await fetch('/api/rag/documents', {
         headers: { Authorization: `Bearer ${token}` },
@@ -71,6 +72,10 @@ export default function DocumentsView() {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
       toast.error('Le fichier ne doit pas dépasser 10 Mo');
+      return;
+    }
+    if (!token) {
+      toast.error('Session expirée. Reconnectez-vous.');
       return;
     }
 
@@ -119,9 +124,22 @@ export default function DocumentsView() {
     if (file) handleUpload(file);
   };
 
-  const handleDelete = (docId: string, filename: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== docId));
-    toast.success(`"${filename}" supprimé`);
+  const handleDelete = async (docId: string, filename: string) => {
+    try {
+      const res = await fetch(`/api/rag/documents?id=${docId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setDocuments((prev) => prev.filter((d) => d.id !== docId));
+        toast.success(`"${filename}" supprimé`);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur lors de la suppression');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
   };
 
   const handleStartRAGChat = () => {

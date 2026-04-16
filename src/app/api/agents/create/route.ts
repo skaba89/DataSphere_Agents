@@ -15,7 +15,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
-    const { name, description, type, systemPrompt, icon, color } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Corps de la requête invalide" },
+        { status: 400 }
+      );
+    }
+
+    const { name, description, type, systemPrompt, icon, color } = body;
 
     if (!name || !description || !systemPrompt) {
       return NextResponse.json(
@@ -24,12 +34,34 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate string lengths
+    if (name.length > 100) {
+      return NextResponse.json(
+        { error: "Le nom ne doit pas dépasser 100 caractères" },
+        { status: 400 }
+      );
+    }
+
+    if (description.length > 500) {
+      return NextResponse.json(
+        { error: "La description ne doit pas dépasser 500 caractères" },
+        { status: 400 }
+      );
+    }
+
+    if (systemPrompt.length > 5000) {
+      return NextResponse.json(
+        { error: "Le prompt système ne doit pas dépasser 5000 caractères" },
+        { status: 400 }
+      );
+    }
+
     const agent = await db.agent.create({
       data: {
-        name,
-        description,
+        name: name.trim(),
+        description: description.trim(),
         type: type || "custom",
-        systemPrompt,
+        systemPrompt: systemPrompt.trim(),
         icon: icon || "Bot",
         color: color || "emerald",
         isDefault: false,
@@ -41,7 +73,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Agent create error:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la création de l'agent" },
+      { error: "Erreur lors de la création de l'agent. Veuillez réessayer." },
       { status: 500 }
     );
   }

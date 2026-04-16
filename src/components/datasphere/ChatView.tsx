@@ -147,7 +147,7 @@ export default function ChatView() {
   }, [activeConversationId]);
 
   const fetchConversations = async () => {
-    if (!currentAgent) return;
+    if (!currentAgent || !token) return;
     try {
       const res = await fetch(`/api/conversations?agentId=${currentAgent.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -217,6 +217,10 @@ export default function ChatView() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !currentAgent || sending) return;
+    if (!token) {
+      toast.error('Session expirée. Reconnectez-vous.');
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),

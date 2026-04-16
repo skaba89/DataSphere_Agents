@@ -65,6 +65,7 @@ export default function PaymentsView() {
   const [amount, setAmount] = useState('');
 
   const fetchTransactions = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await fetch('/api/payment', {
         headers: { Authorization: `Bearer ${token}` },
@@ -97,6 +98,11 @@ export default function PaymentsView() {
     }
 
     setPaying(true);
+    if (!token) {
+      toast.error('Session expirée. Reconnectez-vous.');
+      setPaying(false);
+      return;
+    }
     try {
       const res = await fetch('/api/payment', {
         method: 'POST',

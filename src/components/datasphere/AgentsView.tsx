@@ -146,6 +146,7 @@ export default function AgentsView() {
   const [loading, setLoading] = useState(true);
 
   const fetchAgents = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await fetch('/api/agents', {
         headers: { Authorization: `Bearer ${token}` },
@@ -153,9 +154,11 @@ export default function AgentsView() {
       if (res.ok) {
         const json = await res.json();
         setAgents(json.agents);
+      } else {
+        console.error('Agents fetch error:', res.status);
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('Agents network error:', err);
     } finally {
       setLoading(false);
     }
@@ -171,6 +174,10 @@ export default function AgentsView() {
   };
 
   const handleDelete = async (agentId: string, agentName: string) => {
+    if (!token) {
+      toast.error('Session expirée. Reconnectez-vous.');
+      return;
+    }
     try {
       const res = await fetch(`/api/agents/delete?id=${agentId}`, {
         method: 'DELETE',
