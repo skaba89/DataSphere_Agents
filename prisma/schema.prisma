@@ -8,29 +8,31 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
+  id           String         @id @default(cuid())
+  email        String         @unique
   name         String
   password     String
-  role         String        @default("user")
+  role         String         @default("user")
   avatar       String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   transactions Transaction[]
   documents    Document[]
-  messages     ChatMessage[]
+  conversations Conversation[]
 }
 
 model Agent {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  type        String
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  type         String
   systemPrompt String
-  icon        String   @default("Bot")
-  color       String   @default("emerald")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  icon         String   @default("Bot")
+  color        String   @default("emerald")
+  isDefault    Boolean  @default(false)
+  creatorId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Transaction {
@@ -54,12 +56,22 @@ model Document {
   createdAt DateTime @default(now())
 }
 
-model ChatMessage {
-  id        String   @id @default(cuid())
+model Conversation {
+  id        String       @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User         @relation(fields: [userId], references: [id])
   agentId   String
-  role      String
-  content   String
-  createdAt DateTime @default(now())
+  title     String
+  messages  ChatMessage[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
 }
