@@ -13,6 +13,7 @@ interface AppState {
   token: string | null;
   currentView: string;
   selectedAgentId: string | null;
+  activeConversationId: string | null;
   sidebarOpen: boolean;
   hydrated: boolean;
 
@@ -20,6 +21,7 @@ interface AppState {
   logout: () => void;
   setCurrentView: (view: string) => void;
   setSelectedAgentId: (id: string | null) => void;
+  setActiveConversationId: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   setHydrated: (hydrated: boolean) => void;
 }
@@ -29,6 +31,7 @@ export const useAppStore = create<AppState>((set) => ({
   token: null,
   currentView: "dashboard",
   selectedAgentId: null,
+  activeConversationId: null,
   sidebarOpen: true,
   hydrated: false,
 
@@ -45,11 +48,19 @@ export const useAppStore = create<AppState>((set) => ({
       localStorage.removeItem("ds_token");
       localStorage.removeItem("ds_user");
     }
-    set({ user: null, token: null, currentView: "dashboard", selectedAgentId: null });
+    set({
+      user: null,
+      token: null,
+      currentView: "dashboard",
+      selectedAgentId: null,
+      activeConversationId: null,
+    });
   },
 
-  setCurrentView: (currentView) => set({ currentView, selectedAgentId: null }),
+  setCurrentView: (currentView) =>
+    set({ currentView, selectedAgentId: null, activeConversationId: null }),
   setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
+  setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setHydrated: (hydrated) => set({ hydrated }),
 }));

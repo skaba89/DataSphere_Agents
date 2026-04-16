@@ -15,8 +15,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
+    // Get default agents + user's custom agents
     const agents = await db.agent.findMany({
-      orderBy: { createdAt: "desc" },
+      where: {
+        OR: [
+          { isDefault: true },
+          { creatorId: payload.userId },
+        ],
+      },
+      orderBy: [
+        { isDefault: "desc" },
+        { createdAt: "desc" },
+      ],
     });
 
     return NextResponse.json({ agents });

@@ -46,3 +46,25 @@ Stage Summary:
 - Payments: Mobile Money integration with transaction history
 - Settings: Theme toggle (light/dark/system), profile, password change
 - Database: SQLite with Prisma ORM, seeded with demo data
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Implement Phase 1 recommendations - Agent Builder, Multi-conversations, Chat RAG
+
+Work Log:
+- Updated Prisma schema: added Conversation model, added isDefault/creatorId to Agent, refactored ChatMessage to use conversationId
+- Created API routes: agents/create, agents/update, agents/delete, conversations (CRUD), conversations/messages
+- Updated agents/chat API: supports conversationId, auto-creates conversations, RAG context injection for data-type agents
+- Updated agents list API: shows default agents + user's custom agents
+- Built AgentBuilder component: dialog with name, type, description, system prompt, icon picker, color picker, live preview
+- Rebuilt AgentsView: separated default agents vs custom agents, delete with confirmation, "Mes Agents Personnalisés" section
+- Rebuilt ChatView: conversation sidebar with history, new conversation, delete conversation, select/resume conversations
+- Updated DocumentsView: RAG status banner, "Analyser" button to start RAG chat, violet RAG badges
+- Seeded database with isDefault flag on original agents
+
+Stage Summary:
+- Agent Builder: Full CRUD for custom AI agents with type, icon, color, system prompt
+- Multi-conversations: Create, resume, delete conversations per agent with full history
+- Chat RAG: Data-type agents automatically inject user documents as context
+- All features tested and working with zero lint errors
