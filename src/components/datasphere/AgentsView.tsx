@@ -14,6 +14,7 @@ import {
   Edit3,
   Star,
   User,
+  Globe,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ const iconMap: Record<string, React.ElementType> = {
   Database,
   Target,
   Bot,
+  Globe,
 };
 
 const colorConfig: Record<string, {
@@ -124,6 +126,7 @@ const typeLabels: Record<string, string> = {
   finance: 'Finance',
   data: 'Données + RAG',
   sales: 'Commercial',
+  webbuilder: 'Web Builder',
   custom: 'Personnalisé',
 };
 
@@ -168,9 +171,14 @@ export default function AgentsView() {
     fetchAgents();
   }, [fetchAgents]);
 
-  const handleStartChat = (agentId: string) => {
-    setCurrentView('chat');
-    setSelectedAgentId(agentId);
+  const handleStartChat = (agentId: string, agentType: string) => {
+    if (agentType === 'webbuilder') {
+      setCurrentView('webbuilder');
+      setSelectedAgentId(agentId);
+    } else {
+      setCurrentView('chat');
+      setSelectedAgentId(agentId);
+    }
   };
 
   const handleDelete = async (agentId: string, agentName: string) => {
@@ -274,10 +282,10 @@ export default function AgentsView() {
                             {agent.description}
                           </p>
                           <Button
-                            onClick={() => handleStartChat(agent.id)}
+                            onClick={() => handleStartChat(agent.id, agent.type)}
                             className={`w-full mt-4 bg-gradient-to-r ${colors.gradient} text-white shadow-md text-sm h-9`}
                           >
-                            Discuter
+                            {agent.type === 'webbuilder' ? 'Créer un site' : 'Discuter'}
                             <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
                           </Button>
                         </CardContent>
@@ -337,10 +345,10 @@ export default function AgentsView() {
                       </p>
                       <div className="flex gap-2 mt-4">
                         <Button
-                          onClick={() => handleStartChat(agent.id)}
+                          onClick={() => handleStartChat(agent.id, agent.type)}
                           className={`flex-1 bg-gradient-to-r ${colors.gradient} text-white shadow-md text-sm h-9`}
                         >
-                          Discuter
+                          {agent.type === 'webbuilder' ? 'Créer un site' : 'Discuter'}
                           <ArrowRight className="h-3.5 w-3.5 ml-1" />
                         </Button>
                         <AlertDialog>

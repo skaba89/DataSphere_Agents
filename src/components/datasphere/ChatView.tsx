@@ -22,6 +22,7 @@ import {
   Image as ImageIcon,
   Download,
   StopCircle,
+  Globe,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,7 +79,7 @@ interface Message {
 }
 
 const iconMap: Record<string, React.ElementType> = {
-  Headphones, TrendingUp, Database, Target, Bot,
+  Headphones, TrendingUp, Database, Target, Bot, Globe,
 };
 
 const colorConfig: Record<string, { gradient: string; iconBg: string; iconColor: string }> = {
@@ -91,11 +92,11 @@ const colorConfig: Record<string, { gradient: string; iconBg: string; iconColor:
 };
 
 const typeLabels: Record<string, string> = {
-  support: 'Support', finance: 'Finance', data: 'Données + RAG', sales: 'Commercial', custom: 'Personnalisé',
+  support: 'Support', finance: 'Finance', data: 'Données + RAG', sales: 'Commercial', webbuilder: 'Web Builder', custom: 'Personnalisé',
 };
 
 export default function ChatView() {
-  const { token, selectedAgentId, setSelectedAgentId, activeConversationId, setActiveConversationId } = useAppStore();
+  const { token, selectedAgentId, setSelectedAgentId, activeConversationId, setActiveConversationId, setCurrentView } = useAppStore();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
@@ -146,9 +147,22 @@ export default function ChatView() {
           setCurrentAgent(dataAgent);
           setSelectedAgentId(dataAgent.id);
         }
+      } else if (selectedAgentId === 'webbuilder') {
+        const wbAgent = agents.find((a: Agent) => a.type === 'webbuilder');
+        if (wbAgent) {
+          setSelectedAgentId(wbAgent.id);
+          setCurrentView('webbuilder');
+        }
       } else {
         const agent = agents.find((a: Agent) => a.id === selectedAgentId);
-        if (agent) setCurrentAgent(agent);
+        if (agent) {
+          // Redirect webbuilder agents to the WebBuilder view
+          if (agent.type === 'webbuilder') {
+            setCurrentView('webbuilder');
+            return;
+          }
+          setCurrentAgent(agent);
+        }
       }
     }
   }, [selectedAgentId, agents]);

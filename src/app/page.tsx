@@ -11,6 +11,7 @@ import ChatView from '@/components/datasphere/ChatView';
 import DocumentsView from '@/components/datasphere/DocumentsView';
 import PaymentsView from '@/components/datasphere/PaymentsView';
 import SettingsView from '@/components/datasphere/SettingsView';
+import WebBuilderView from '@/components/datasphere/WebBuilderView';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen } = useAppStore();
@@ -41,6 +42,8 @@ function AppContent() {
         return <AgentsView />;
       case 'chat':
         return <ChatView />;
+      case 'webbuilder':
+        return <WebBuilderView />;
       case 'documents':
         return <DocumentsView />;
       case 'payments':

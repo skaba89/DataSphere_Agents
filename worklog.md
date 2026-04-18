@@ -115,3 +115,31 @@ Stage Summary:
 - All 4 AI agents are loaded (Support, Finance, Data+RAG, Commercial)
 - AI chat streaming works correctly with z-ai-web-dev-sdk
 - User can access the preview at the standard URL
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add Web Builder IA agent to DataSphere
+
+Work Log:
+- Added "Web Builder IA" agent to seed data (type: webbuilder, icon: Globe, color: cyan)
+- Created API route /api/agents/webbuilder/route.ts with streaming SSE + HTML extraction
+- Created WebBuilderView.tsx component with:
+  - Split panel: Chat (left) + Preview/Code (right)
+  - Live preview iframe with device switching (desktop/tablet/mobile)
+  - Code view with syntax highlighting
+  - Quick start prompts (Landing page, Portfolio, E-commerce, Dashboard)
+  - Copy code + Download HTML export
+  - Real-time streaming preview (iframe updates as code is generated)
+  - Conversation history with HTML extraction from past messages
+- Updated page.tsx: Added webbuilder view routing
+- Updated Sidebar.tsx: Added Web Builder navigation item with Globe icon
+- Updated AgentsView.tsx: Added Globe icon, webbuilder type, redirect to webbuilder view
+- Updated ChatView.tsx: Added Globe icon, webbuilder type, auto-redirect to webbuilder view
+- Rebuilt and tested: 5 agents now available, Web Builder generates complete HTML
+
+Stage Summary:
+- Web Builder IA agent fully functional with live preview
+- API correctly extracts HTML code from AI responses
+- Frontend has professional split-panel UI with device preview
+- Export to HTML file works
+- All 5 agents visible: Support, Finance, Data+RAG, Commercial, Web Builder

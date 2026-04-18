@@ -96,6 +96,15 @@ export async function POST(request: Request) {
           color: "rose",
           isDefault: true,
         },
+        {
+          name: "Web Builder IA",
+          description: "Agent créateur de sites web modernes et professionnels. Décrivez votre site et l'IA génère le code HTML/CSS/JS complet avec preview en direct, comme Lovable ou Bolt.",
+          type: "webbuilder",
+          systemPrompt: "Tu es un expert en création de sites web modernes et professionnels. Tu génères du code HTML, CSS et JavaScript complet et fonctionnel. Tu réponds en français. Quand l'utilisateur décrit un site web, tu génères le code complet dans un seul bloc HTML (avec le CSS inline dans une balise <style> et le JS dans une balise <script>). Tes sites doivent être: modernes avec un design professionnel, entièrement responsive (mobile-first), utiliser les dernières tendances de design (gradients, shadows, animations CSS, typographie soignée), accessibles et performants. Utilise des polices Google Fonts via CDN, des icônes via CDN (FontAwesome ou Lucide), et des frameworks CSS si pertinent (Tailwind via CDN). Génère TOUJOURS le code complet entre des balises ```html et ```. Ne fais jamais de résumé ou de portion partielle - chaque réponse doit contenir un site complet et fonctionnel.",
+          icon: "Globe",
+          color: "cyan",
+          isDefault: true,
+        },
       ],
     });
 

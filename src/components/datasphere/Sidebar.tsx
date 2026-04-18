@@ -13,6 +13,7 @@ import {
   Sparkles,
   X,
   MessageSquare,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -28,6 +29,7 @@ import {
 const navItems = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { id: 'agents', label: 'Agents IA', icon: Bot },
+  { id: 'webbuilder', label: 'Web Builder', icon: Globe },
   { id: 'chat', label: 'Conversation', icon: MessageSquare },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'payments', label: 'Paiements', icon: CreditCard },
