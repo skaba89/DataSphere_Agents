@@ -8,31 +8,34 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  name         String
-  password     String
-  role         String         @default("user")
-  avatar       String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  transactions Transaction[]
-  documents    Document[]
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  password      String
+  role          String         @default("user")
+  avatar        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  transactions  Transaction[]
+  documents     Document[]
   conversations Conversation[]
+  sharedAgents  SharedAgent[]
+  notifications Notification[]
 }
 
 model Agent {
-  id           String   @id @default(cuid())
-  name         String
-  description  String
-  type         String
-  systemPrompt String
-  icon         String   @default("Bot")
-  color        String   @default("emerald")
-  isDefault    Boolean  @default(false)
-  creatorId    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String        @id @default(cuid())
+  name          String
+  description   String
+  type          String
+  systemPrompt  String
+  icon          String        @default("Bot")
+  color         String        @default("emerald")
+  isDefault     Boolean       @default(false)
+  creatorId     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  conversations Conversation[]
 }
 
 model Transaction {
@@ -61,6 +64,7 @@ model Conversation {
   userId    String
   user      User         @relation(fields: [userId], references: [id])
   agentId   String
+  agent     Agent        @relation(fields: [agentId], references: [id])
   title     String
   messages  ChatMessage[]
   createdAt DateTime     @default(now())
@@ -74,4 +78,33 @@ model ChatMessage {
   role           String
   content        String
   createdAt      DateTime     @default(now())
+}
+
+model SharedAgent {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  type         String
+  systemPrompt String
+  icon         String   @default("Bot")
+  color        String   @default("emerald")
+  creatorId    String
+  creator      User     @relation(fields: [creatorId], references: [id])
+  downloads    Int      @default(0)
+  rating       Float    @default(0)
+  ratingCount  Int      @default(0)
+  tags         String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String   @default("info")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

@@ -68,3 +68,29 @@ Stage Summary:
 - Multi-conversations: Create, resume, delete conversations per agent with full history
 - Chat RAG: Data-type agents automatically inject user documents as context
 - All features tested and working with zero lint errors
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix AI agents not working - debug and repair full stack
+
+Work Log:
+- Investigated server status: Next.js server was not running (crashed/not started)
+- Identified root cause: Server crashes due to memory pressure in container environment
+- Fixed store bug: `setCurrentView` was resetting `selectedAgentId` to null, breaking agent→chat navigation
+- Split ChatView useEffect: separated agent fetching from agent selection logic to prevent race conditions
+- Improved SSE parsing in ChatView: added proper buffer handling for chunked streaming data
+- Fixed next.config.ts: removed `output: "standalone"` which was causing production server issues
+- Rebuilt production build (next build) for optimal memory usage (~87MB vs ~1.7GB for dev server)
+- Tested all 4 AI agents (Support, Finance, Data RAG, Commercial) - streaming responses work
+- Tested non-streaming chat - works
+- Tested multi-turn conversations with context - works
+- Created resilient startup script (start.sh) with auto-restart on crash
+- Seeded database with default agents and demo users
+
+Stage Summary:
+- Server runs in production mode (~87MB memory) with auto-restart
+- All AI agents functional: streaming chat, non-streaming chat, multi-turn conversations
+- Front-end navigation fixed: agent selection no longer lost on view change
+- SSE streaming properly handles chunked data with buffer parsing
+- Login: admin@datasphere.ai / admin123 or demo@datasphere.ai / demo123

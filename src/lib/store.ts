@@ -58,7 +58,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   setCurrentView: (currentView) =>
-    set({ currentView, selectedAgentId: null, activeConversationId: null }),
+    set({ currentView }),
   setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
   setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),

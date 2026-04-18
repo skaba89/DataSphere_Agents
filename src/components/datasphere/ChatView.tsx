@@ -17,6 +17,11 @@ import {
   Trash2,
   Clock,
   FileText,
+  Mic,
+  MicOff,
+  Image as ImageIcon,
+  Download,
+  StopCircle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,8 +41,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 
 interface Agent {
   id: string;
@@ -93,16 +105,23 @@ export default function ChatView() {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showConversations, setShowConversations] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [generatingImage, setGeneratingImage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, streamingContent, scrollToBottom]);
 
-  // Fetch agents
+  // Fetch agents and set current agent based on selectedAgentId
   useEffect(() => {
     const fetchAgents = async () => {
       try {
@@ -112,24 +131,27 @@ export default function ChatView() {
         if (res.ok) {
           const json = await res.json();
           setAgents(json.agents);
-          if (selectedAgentId) {
-            // Handle special 'data' ID from DocumentsView — find the data-type agent
-            if (selectedAgentId === 'data') {
-              const dataAgent = json.agents.find((a: Agent) => a.type === 'data');
-              if (dataAgent) {
-                setCurrentAgent(dataAgent);
-                setSelectedAgentId(dataAgent.id);
-              }
-            } else {
-              const agent = json.agents.find((a: Agent) => a.id === selectedAgentId);
-              if (agent) setCurrentAgent(agent);
-            }
-          }
         }
       } catch { /* silent */ } finally { setLoadingAgents(false); }
     };
     fetchAgents();
-  }, [token, selectedAgentId]);
+  }, [token]);
+
+  // Set current agent when selectedAgentId or agents list changes
+  useEffect(() => {
+    if (selectedAgentId && agents.length > 0) {
+      if (selectedAgentId === 'data') {
+        const dataAgent = agents.find((a: Agent) => a.type === 'data');
+        if (dataAgent) {
+          setCurrentAgent(dataAgent);
+          setSelectedAgentId(dataAgent.id);
+        }
+      } else {
+        const agent = agents.find((a: Agent) => a.id === selectedAgentId);
+        if (agent) setCurrentAgent(agent);
+      }
+    }
+  }, [selectedAgentId, agents]);
 
   // Fetch conversations when agent is selected
   useEffect(() => {
@@ -183,17 +205,20 @@ export default function ChatView() {
     setCurrentAgent(agent);
     setActiveConversationId(null);
     setMessages([]);
+    setStreamingContent('');
     setShowConversations(false);
   };
 
   const handleNewChat = () => {
     setActiveConversationId(null);
     setMessages([]);
+    setStreamingContent('');
     setShowConversations(false);
   };
 
   const handleSelectConversation = (conv: Conversation) => {
     setActiveConversationId(conv.id);
+    setStreamingContent('');
     setShowConversations(false);
   };
 
@@ -214,8 +239,8 @@ export default function ChatView() {
     } catch { toast.error('Erreur réseau'); }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!input.trim() || !currentAgent || sending) return;
     if (!token) {
       toast.error('Session expirée. Reconnectez-vous.');
@@ -232,9 +257,13 @@ export default function ChatView() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setSending(true);
+    setStreamingContent('');
 
     try {
-      const res = await fetch('/api/agents/chat', {
+      // Try streaming first
+      abortControllerRef.current = new AbortController();
+      
+      const response = await fetch('/api/agents/chat-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,34 +272,266 @@ export default function ChatView() {
         body: JSON.stringify({
           agentId: currentAgent.id,
           message: userMessage.content,
-          conversationId: activeConversationId,
+          conversationId: activeConversationId || undefined,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Erreur');
-        return;
+      if (!response.ok) {
+        // Streaming failed, fallback to non-streaming
+        throw new Error('stream_failed');
       }
 
-      // Set conversation ID if new
-      if (data.conversationId && !activeConversationId) {
-        setActiveConversationId(data.conversationId);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Pas de stream');
+
+      const decoder = new TextDecoder();
+      let convId = activeConversationId;
+      let fullText = '';
+      let streamWorked = false;
+      let sseBuffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        sseBuffer += chunk;
+
+        // Split by newlines but keep the last incomplete line in the buffer
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+
+            if (data.type === 'meta') {
+              convId = data.conversationId;
+              setActiveConversationId(data.conversationId);
+            } else if (data.type === 'token') {
+              fullText += data.content;
+              setStreamingContent(fullText);
+              streamWorked = true;
+            } else if (data.type === 'done') {
+              const assistantMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: data.fullResponse || fullText,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, assistantMessage]);
+              setStreamingContent('');
+              setActiveConversationId(data.conversationId);
+              fetchConversations();
+            } else if (data.type === 'error') {
+              toast.error(data.content);
+              setStreamingContent('');
+            }
+          } catch {
+            // Ignore parse errors for incomplete data
+          }
+        }
       }
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
-      };
+      // Process remaining buffer
+      if (sseBuffer.trim()) {
+        const trimmed = sseBuffer.trim();
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+            if (data.type === 'done') {
+              const assistantMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: data.fullResponse || fullText,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, assistantMessage]);
+              setStreamingContent('');
+              if (data.conversationId) setActiveConversationId(data.conversationId);
+              fetchConversations();
+            }
+          } catch { /* ignore */ }
+        }
+      }
 
-      setMessages((prev) => [...prev, assistantMessage]);
-      fetchConversations();
-    } catch {
-      toast.error('Erreur réseau');
+      // If streaming produced content but no done event, add the message manually
+      if (streamWorked && fullText) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: fullText,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setStreamingContent('');
+        if (convId) setActiveConversationId(convId);
+        fetchConversations();
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setStreamingContent('');
+      } else {
+        // Fallback to non-streaming chat
+        try {
+          const res = await fetch('/api/agents/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              agentId: currentAgent.id,
+              message: userMessage.content,
+              conversationId: activeConversationId || undefined,
+            }),
+          });
+
+          const data = await res.json();
+          if (res.ok && data.response) {
+            if (data.conversationId && !activeConversationId) {
+              setActiveConversationId(data.conversationId);
+            }
+            const assistantMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: data.response,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, assistantMessage]);
+            fetchConversations();
+          } else {
+            toast.error(data.error || 'Erreur serveur');
+          }
+        } catch {
+          toast.error('Erreur de connexion au serveur');
+        }
+        setStreamingContent('');
+      }
     } finally {
       setSending(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setSending(false);
+      setStreamingContent('');
+    }
+  };
+
+  // Voice recording
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const audioChunks: BlobPart[] = [];
+
+      mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          const res = await fetch('/api/agents/speech', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.text) {
+              setInput((prev) => prev ? `${prev} ${data.text}` : data.text);
+            } else {
+              toast.info(data.message || 'Parole non détectée');
+            }
+          }
+        } catch {
+          toast.error('Erreur de transcription');
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      toast.error('Microphone non disponible');
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Image generation
+  const handleGenerateImage = async () => {
+    if (!token || !imagePrompt.trim()) return;
+    setGeneratingImage(true);
+    try {
+      const res = await fetch('/api/agents/image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt.trim(),
+          conversationId: activeConversationId || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.imageUrl) {
+          const imgMsg: Message = {
+            id: `img-${Date.now()}`,
+            role: 'assistant',
+            content: `![Image générée](${data.imageUrl})\n\n*Image générée pour : "${imagePrompt.trim()}"*`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, imgMsg]);
+          toast.success('Image générée !');
+        }
+      } else {
+        toast.error('Erreur de génération');
+      }
+    } catch {
+      toast.error('Erreur de génération');
+    } finally {
+      setGeneratingImage(false);
+      setImagePrompt('');
+      setShowImageDialog(false);
+    }
+  };
+
+  // Export conversation
+  const handleExportChat = async () => {
+    if (!activeConversationId || !token) return;
+    try {
+      const res = await fetch(`/api/conversations/export?conversationId=${activeConversationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `conversation-${activeConversationId}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Conversation exportée');
+      }
+    } catch {
+      toast.error('Erreur d\'export');
     }
   };
 
@@ -279,10 +540,10 @@ export default function ChatView() {
     setCurrentAgent(null);
     setActiveConversationId(null);
     setMessages([]);
+    setStreamingContent('');
     setShowConversations(false);
   };
 
-  // Agent colors
   const agentColors = colorConfig[currentAgent?.color || 'emerald'] || colorConfig.emerald;
   const AgentIcon = iconMap[currentAgent?.icon || 'Bot'] || Bot;
 
@@ -346,7 +607,7 @@ export default function ChatView() {
     );
   }
 
-  // Chat interface with agent selected
+  // Chat interface
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex h-[calc(100vh)]">
       {/* Conversation Sidebar */}
@@ -448,6 +709,21 @@ export default function ChatView() {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {activeConversationId && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-xs gap-1">
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportChat}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Exporter la conversation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -485,7 +761,7 @@ export default function ChatView() {
             ) : (
               <>
                 {/* Welcome message */}
-                {messages.length === 0 && (
+                {messages.length === 0 && !sending && !streamingContent && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center py-10">
                     <div className={`inline-flex p-3 rounded-2xl ${agentColors.iconBg} mb-3`}>
                       <AgentIcon className={`h-8 w-8 ${agentColors.iconColor}`} />
@@ -527,7 +803,13 @@ export default function ChatView() {
                             : 'bg-white dark:bg-gray-900 border border-emerald-100 dark:border-emerald-900/50 shadow-sm rounded-bl-md'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        {msg.role === 'assistant' ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        )}
                         <p className={`text-[9px] mt-1 ${msg.role === 'user' ? 'text-emerald-200' : 'text-muted-foreground'}`}>
                           {msg.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
@@ -536,7 +818,24 @@ export default function ChatView() {
                   ))}
                 </AnimatePresence>
 
-                {sending && (
+                {/* Streaming response */}
+                {streamingContent && (
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 justify-start">
+                    <Avatar className="h-7 w-7 shrink-0 ring-1 ring-emerald-200 dark:ring-emerald-800 mt-1">
+                      <AvatarFallback className={`bg-gradient-to-br ${agentColors.gradient} text-white text-[10px]`}>
+                        <AgentIcon className="h-3.5 w-3.5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="max-w-[85%] bg-white dark:bg-gray-900 border border-emerald-100 dark:border-emerald-900/50 shadow-sm rounded-2xl rounded-bl-md px-3.5 py-2.5 text-sm">
+                      <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                      </div>
+                      <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+                    </div>
+                  </motion.div>
+                )}
+
+                {sending && !streamingContent && (
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 justify-start">
                     <Avatar className="h-7 w-7 shrink-0 ring-1 ring-emerald-200 dark:ring-emerald-800 mt-1">
                       <AvatarFallback className={`bg-gradient-to-br ${agentColors.gradient} text-white text-[10px]`}>
@@ -559,9 +858,50 @@ export default function ChatView() {
           </div>
         </div>
 
+        {/* Image generation dialog */}
+        {showImageDialog && (
+          <div className="border-t border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 p-3">
+            <div className="max-w-3xl mx-auto flex gap-2">
+              <Input
+                placeholder="Décrivez l'image à générer..."
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateImage(); }}
+                disabled={generatingImage}
+                className="flex-1 border-violet-200 dark:border-violet-800"
+              />
+              <Button
+                onClick={handleGenerateImage}
+                disabled={!imagePrompt.trim() || generatingImage}
+                className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+              >
+                {generatingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Input Area */}
         <div className="border-t border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 p-3 shrink-0">
           <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={`shrink-0 ${isRecording ? 'bg-red-50 dark:bg-red-950/30 border-red-300' : ''}`}
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+            >
+              {isRecording ? <MicOff className="h-4 w-4 text-red-500 animate-pulse" /> : <Mic className="h-4 w-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={`shrink-0 ${showImageDialog ? 'bg-violet-50 dark:bg-violet-950/30 border-violet-300' : ''}`}
+              onClick={() => setShowImageDialog(!showImageDialog)}
+            >
+              <ImageIcon className="h-4 w-4" />
+            </Button>
             <Input
               ref={inputRef}
               value={input}
@@ -570,14 +910,26 @@ export default function ChatView() {
               disabled={sending}
               className="flex-1 border-emerald-200 dark:border-emerald-800 focus-visible:ring-emerald-500 text-sm"
             />
-            <Button
-              type="submit"
-              disabled={!input.trim() || sending}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25 shrink-0"
-              size="icon"
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+            {sending ? (
+              <Button
+                type="button"
+                onClick={handleStopStreaming}
+                variant="destructive"
+                className="shrink-0"
+                size="icon"
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!input.trim() || sending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25 shrink-0"
+                size="icon"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </form>
         </div>
       </div>
