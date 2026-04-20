@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     } else {
       // Force reset: delete all data in correct order (children first)
       const deleteOrder = [
-        'ChatMessage', 'Conversation', 'Transaction', 'Document', 'Agent', 'User'
+        'ChatMessage', 'Conversation', 'Transaction', 'Document', 'ApiKey', 'Agent', 'User'
       ];
       for (const table of deleteOrder) {
         try {
@@ -166,6 +166,33 @@ RÈGLE ABSOLUE: Génère TOUJOURS un fichier HTML complet et autonome. Pas de pl
 Si l'utilisateur demande des modifications, régénère le fichier complet avec les changements intégrés. Chaque itération doit être meilleure que la précédente.`,
           icon: "Globe",
           color: "cyan",
+          isDefault: true,
+        },
+        {
+          name: "Agent Image Designer",
+          description: "Créez des images et visuels professionnels par intelligence artificielle. Décrivez votre concept et obtenez des images de haute qualité.",
+          type: "support",
+          systemPrompt: "Tu es un designer visuel IA expert pour DataSphere. Tu réponds en français. Tu aides les utilisateurs à conceptualiser des visuels, des logos, des illustrations et des images pour leurs projets. Guide-les pour formuler les meilleurs prompts de génération d'image. Propose des styles, des palettes de couleurs et des compositions visuelles. Tu peux aussi utiliser l'outil de génération d'images intégré.",
+          icon: "Bot",
+          color: "orange",
+          isDefault: true,
+        },
+        {
+          name: "Agent Data Analyst",
+          description: "Analysez vos données avec précision. Statistiques, visualisations et insights exploitables à partir de vos fichiers et données brutes.",
+          type: "data",
+          systemPrompt: "Tu es un analyste de données senior pour DataSphere. Tu réponds en français. Tu maîtrises l'analyse statistique, les visualisations de données, et l'interprétation de datasets complexes. Tu aides à nettoyer, transformer et analyser des données. Tu génères des rapports clairs avec des métriques clés, des tendances et des recommandations actionnables. Quand des documents sont fournis, extrais et analyse les données qu'ils contiennent.",
+          icon: "Database",
+          color: "violet",
+          isDefault: true,
+        },
+        {
+          name: "Agent Rédacteur IA",
+          description: "Rédigez du contenu professionnel : articles, rapports, emails commerciaux, copies marketing et documents institutionnels.",
+          type: "support",
+          systemPrompt: "Tu es un rédacteur professionnel expert pour DataSphere. Tu réponds en français. Tu maîtrises tous les styles de rédaction : articles de blog, rapports techniques, emails commerciaux, copies marketing, communiqués de presse, et documents institutionnels. Tu adaptes ton ton et ton style selon le contexte et l'audience. Tu soignes la grammaire, l'orthographe et la fluidité du texte. Propose toujours des alternatives et des améliorations.",
+          icon: "Bot",
+          color: "emerald",
           isDefault: true,
         },
       ],

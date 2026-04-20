@@ -23,6 +23,8 @@ import {
   Download,
   StopCircle,
   Globe,
+  Cpu,
+  Settings,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAppStore } from '@/lib/store';
+import { PROVIDERS, ProviderId } from '@/lib/ai-providers';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 
@@ -96,7 +99,7 @@ const typeLabels: Record<string, string> = {
 };
 
 export default function ChatView() {
-  const { token, selectedAgentId, setSelectedAgentId, activeConversationId, setActiveConversationId, setCurrentView } = useAppStore();
+  const { token, selectedAgentId, setSelectedAgentId, activeConversationId, setActiveConversationId, setCurrentView, selectedProvider, setSelectedProvider, availableProviders } = useAppStore();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
@@ -111,6 +114,7 @@ export default function ChatView() {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [showProviderMenu, setShowProviderMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -287,6 +291,7 @@ export default function ChatView() {
           agentId: currentAgent.id,
           message: userMessage.content,
           conversationId: activeConversationId || undefined,
+          provider: selectedProvider !== 'auto' ? selectedProvider : undefined,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -402,6 +407,7 @@ export default function ChatView() {
               agentId: currentAgent.id,
               message: userMessage.content,
               conversationId: activeConversationId || undefined,
+              provider: selectedProvider !== 'auto' ? selectedProvider : undefined,
             }),
           });
 
@@ -723,6 +729,42 @@ export default function ChatView() {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {/* Provider Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline max-w-[80px] truncate">
+                    {selectedProvider === 'auto' ? 'Auto' : PROVIDERS[selectedProvider as ProviderId]?.name?.split(' ')[0] || 'Auto'}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => setSelectedProvider('auto')} className="text-xs">
+                  <Sparkles className="h-3.5 w-3.5 mr-2 text-emerald-500" />
+                  Automatique (premier disponible)
+                </DropdownMenuItem>
+                {Object.values(PROVIDERS).map((p) => {
+                  const isConfigured = availableProviders.some((ap: any) => ap.id === p.id && ap.configured);
+                  return (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => setSelectedProvider(p.id)}
+                      className="text-xs"
+                      disabled={!isConfigured}
+                    >
+                      <span className="mr-2">{p.icon}</span>
+                      {p.name}
+                      {!isConfigured && <span className="ml-auto text-muted-foreground text-[10px]">Non configuré</span>}
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuItem onClick={() => setCurrentView('settings')} className="text-xs text-emerald-600">
+                  <Settings className="h-3.5 w-3.5 mr-2" />
+                  Configurer les clés API...
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {activeConversationId && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

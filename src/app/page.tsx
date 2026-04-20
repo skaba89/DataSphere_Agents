@@ -77,12 +77,13 @@ function AppContent() {
 }
 
 export default function Home() {
-  const { setAuth, hydrated, setHydrated } = useAppStore();
+  const { setAuth, hydrated, setHydrated, setSelectedProvider } = useAppStore();
 
   useEffect(() => {
     // Restore auth from localStorage after mount
     const token = localStorage.getItem('ds_token');
     const userStr = localStorage.getItem('ds_user');
+    const savedProvider = localStorage.getItem('ds_provider');
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
@@ -92,8 +93,11 @@ export default function Home() {
         localStorage.removeItem('ds_user');
       }
     }
+    if (savedProvider) {
+      setSelectedProvider(savedProvider);
+    }
     setHydrated(true);
-  }, [setAuth, setHydrated]);
+  }, [setAuth, setHydrated, setSelectedProvider]);
 
   if (!hydrated) {
     return (

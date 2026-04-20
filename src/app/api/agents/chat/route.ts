@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { resolveProvider, chatCompletion, PROVIDERS } from "@/lib/ai-providers";
 
 export async function POST(request: Request) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { agentId, message, conversationId } = body;
+    const { agentId, message, conversationId, provider: requestedProvider } = body;
 
     if (!agentId || !message) {
       return NextResponse.json(
@@ -84,7 +85,6 @@ export async function POST(request: Request) {
     let systemPrompt = agent.systemPrompt;
 
     if (agent.type === "data") {
-      // RAG: inject user's documents as context
       const documents = await db.document.findMany({
         where: { userId: payload.userId },
         orderBy: { createdAt: "desc" },
@@ -95,31 +95,52 @@ export async function POST(request: Request) {
         const docContext = documents
           .map((d) => `--- Document: ${d.filename} ---\n${d.content.slice(0, 3000)}`)
           .join("\n\n");
-
         systemPrompt += `\n\nVoici les documents de l'utilisateur que tu peux utiliser pour répondre :\n\n${docContext}\n\nBase tes réponses sur ces documents quand c'est pertinent. Si l'information n'est pas dans les documents, dis-le honnêtement.`;
       } else {
         systemPrompt += "\n\nL'utilisateur n'a pas encore téléchargé de documents. Encourage-le à en télécharger pour que tu puisses les analyser.";
       }
     }
 
-    // Call AI via z-ai-web-dev-sdk
+    // Call AI — try multi-provider first, then fallback to Z-AI SDK
     let assistantContent: string;
-    try {
-      // SDK loaded via singleton
-      const { getZAI } = await import("@/lib/zai");
-      const zai = await getZAI();
-      const completion = await zai.chat.completions.create({
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...conversationHistory,
-        ],
-      });
-      assistantContent =
-        completion.choices?.[0]?.message?.content ||
-        "Désolé, je n'ai pas pu générer une réponse.";
-    } catch (aiError) {
-      console.error("AI SDK error:", aiError);
-      assistantContent = "Désolé, le service IA est temporairement indisponible. Veuillez réessayer dans quelques instants.";
+
+    // Try multi-provider
+    const providerInfo = await resolveProvider(payload.userId, requestedProvider);
+
+    if (providerInfo) {
+      try {
+        const result = await chatCompletion({
+          provider: providerInfo.provider,
+          apiKey: providerInfo.apiKey,
+          model: providerInfo.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory,
+          ],
+        });
+        assistantContent = result.content || "Désolé, je n'ai pas pu générer une réponse.";
+      } catch (aiError: any) {
+        console.error(`${PROVIDERS[providerInfo.provider]?.name} error:`, aiError?.message);
+        assistantContent = `Erreur avec ${PROVIDERS[providerInfo.provider]?.name}: ${aiError?.message || 'Service temporairement indisponible.'}`;
+      }
+    } else {
+      // Fallback to Z-AI SDK
+      try {
+        const { getZAI } = await import("@/lib/zai");
+        const zai = await getZAI();
+        const completion = await zai.chat.completions.create({
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory,
+          ],
+        });
+        assistantContent =
+          completion.choices?.[0]?.message?.content ||
+          "Désolé, je n'ai pas pu générer une réponse.";
+      } catch (aiError) {
+        console.error("Z-AI SDK error:", aiError);
+        assistantContent = "Aucun fournisseur IA n'est configuré. Veuillez ajouter une clé API dans les Paramètres (OpenAI, Anthropic, Groq, Qwen ou OpenRouter).";
+      }
     }
 
     // Save assistant response

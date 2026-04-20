@@ -21,6 +21,7 @@ model User {
   conversations Conversation[]
   sharedAgents  SharedAgent[]
   notifications Notification[]
+  apiKeys       ApiKey[]
 }
 
 model Agent {
@@ -107,4 +108,18 @@ model Notification {
   type      String   @default("info")
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  provider  String   // "openai", "anthropic", "groq", "qwen", "openrouter"
+  keyEnc    String   // encrypted API key
+  model     String   @default("") // preferred model for this provider
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, provider])
 }

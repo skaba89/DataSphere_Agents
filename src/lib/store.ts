@@ -8,6 +8,16 @@ interface User {
   avatar?: string | null;
 }
 
+interface ProviderInfo {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  configured: boolean;
+  defaultModel: string;
+  models: string[];
+}
+
 interface AppState {
   user: User | null;
   token: string | null;
@@ -16,6 +26,8 @@ interface AppState {
   activeConversationId: string | null;
   sidebarOpen: boolean;
   hydrated: boolean;
+  selectedProvider: string;
+  availableProviders: ProviderInfo[];
 
   setAuth: (user: User, token: string) => void;
   logout: () => void;
@@ -24,6 +36,8 @@ interface AppState {
   setActiveConversationId: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   setHydrated: (hydrated: boolean) => void;
+  setSelectedProvider: (provider: string) => void;
+  setAvailableProviders: (providers: ProviderInfo[]) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -34,6 +48,8 @@ export const useAppStore = create<AppState>((set) => ({
   activeConversationId: null,
   sidebarOpen: true,
   hydrated: false,
+  selectedProvider: "auto",
+  availableProviders: [],
 
   setAuth: (user, token) => {
     if (typeof window !== "undefined") {
@@ -54,6 +70,7 @@ export const useAppStore = create<AppState>((set) => ({
       currentView: "dashboard",
       selectedAgentId: null,
       activeConversationId: null,
+      selectedProvider: "auto",
     });
   },
 
@@ -63,4 +80,11 @@ export const useAppStore = create<AppState>((set) => ({
   setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setHydrated: (hydrated) => set({ hydrated }),
+  setSelectedProvider: (selectedProvider) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ds_provider", selectedProvider);
+    }
+    set({ selectedProvider });
+  },
+  setAvailableProviders: (availableProviders) => set({ availableProviders }),
 }));
