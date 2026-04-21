@@ -44,7 +44,7 @@ const navItems = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, badge: 0 },
   { id: 'agents', label: 'Agents IA', icon: Bot, badge: 0 },
   { id: 'marketplace', label: 'Marketplace', icon: Store, badge: 0 },
-  { id: 'chat', label: 'Chat', icon: MessageSquare, badge: 3 },
+  { id: 'chat', label: 'Chat', icon: MessageSquare, badge: 0 },
   { id: 'webbuilder', label: 'Web Builder', icon: Globe, badge: 0 },
   { id: 'documents', label: 'Documents', icon: FileText, badge: 0 },
   { id: 'payments', label: 'Paiements', icon: CreditCard, badge: 0 },

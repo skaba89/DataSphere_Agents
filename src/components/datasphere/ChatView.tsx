@@ -929,12 +929,12 @@ export default function ChatView() {
                     adjustTextareaHeight();
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       sendMessage();
                     }
                   }}
-                  placeholder="Écrivez votre message... (Ctrl+Entrée pour envoyer)"
+                  placeholder="Écrivez votre message... (Shift+Entrée pour un retour à la ligne)"
                   className="flex-1 resize-none min-h-[40px] max-h-[96px] py-2.5 pr-3 text-sm"
                   rows={1}
                   disabled={isStreaming}
@@ -984,7 +984,7 @@ export default function ChatView() {
               className="resize-none min-h-[80px]"
               rows={3}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   generateImage();
                 }
