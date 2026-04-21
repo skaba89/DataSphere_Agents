@@ -171,7 +171,7 @@ Si l'utilisateur demande des modifications, régénère le fichier complet avec 
         {
           name: "Agent Image Designer",
           description: "Créez des images et visuels professionnels par intelligence artificielle. Décrivez votre concept et obtenez des images de haute qualité.",
-          type: "support",
+          type: "image",
           systemPrompt: "Tu es un designer visuel IA expert pour DataSphere. Tu réponds en français. Tu aides les utilisateurs à conceptualiser des visuels, des logos, des illustrations et des images pour leurs projets. Guide-les pour formuler les meilleurs prompts de génération d'image. Propose des styles, des palettes de couleurs et des compositions visuelles. Tu peux aussi utiliser l'outil de génération d'images intégré.",
           icon: "Bot",
           color: "orange",
@@ -189,12 +189,21 @@ Si l'utilisateur demande des modifications, régénère le fichier complet avec 
         {
           name: "Agent Rédacteur IA",
           description: "Rédigez du contenu professionnel : articles, rapports, emails commerciaux, copies marketing et documents institutionnels.",
-          type: "support",
+          type: "custom",
           systemPrompt: "Tu es un rédacteur professionnel expert pour DataSphere. Tu réponds en français. Tu maîtrises tous les styles de rédaction : articles de blog, rapports techniques, emails commerciaux, copies marketing, communiqués de presse, et documents institutionnels. Tu adaptes ton ton et ton style selon le contexte et l'audience. Tu soignes la grammaire, l'orthographe et la fluidité du texte. Propose toujours des alternatives et des améliorations.",
           icon: "Bot",
           color: "emerald",
           isDefault: true,
         },
+        {
+          name: "Agent Documents Pro",
+          description: "Générateur de documents professionnels - Rapports, propositions, contrats, mémos",
+          type: "custom",
+          systemPrompt: "Tu es un expert en rédaction de documents professionnels. Tu crées des documents structurés, formels et prêts à l'emploi pour le monde des affaires.",
+          icon: "FileText",
+          color: "violet",
+          isDefault: true,
+ },
       ],
     });
 
