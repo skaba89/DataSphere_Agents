@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import ReactMarkdown from 'react-markdown';
 import {
   Send,
   Square,
@@ -23,12 +22,26 @@ import {
   Trash2,
   X,
   PanelLeft,
+  Copy,
+  Check,
+  RefreshCw,
+  Pencil,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -43,6 +56,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import AgentContentRenderer from './AgentContentRenderer';
 
 const iconMap: Record<string, React.ElementType> = {
   Headphones, TrendingUp, Database, Target, Globe, Bot,
@@ -62,6 +76,76 @@ interface StreamMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+}
+
+// Typing indicator component
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1 px-1 py-0.5">
+      <motion.div
+        className="w-2 h-2 rounded-full bg-emerald-500"
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+      />
+      <motion.div
+        className="w-2 h-2 rounded-full bg-emerald-500"
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }}
+      />
+      <motion.div
+        className="w-2 h-2 rounded-full bg-emerald-500"
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }}
+      />
+    </div>
+  );
+}
+
+// Message actions component
+function MessageActions({ content, onRegenerate, onEdit }: { content: string; onRegenerate?: () => void; onEdit?: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+        onClick={handleCopy}
+        title="Copier"
+      >
+        {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+      </Button>
+      {onRegenerate && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          onClick={onRegenerate}
+          title="Régénérer"
+        >
+          <RefreshCw className="h-3 w-3" />
+        </Button>
+      )}
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          onClick={onEdit}
+          title="Modifier"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      )}
+    </div>
+  );
 }
 
 export default function ChatView() {
@@ -84,12 +168,31 @@ export default function ChatView() {
   const [loadingConvos, setLoadingConvos] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [isWaitingFirstToken, setIsWaitingFirstToken] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageGenerating, setImageGenerating] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+
+  // Agent status
+  const agentStatus = isStreaming
+    ? isWaitingFirstToken
+      ? 'thinking'
+      : 'running'
+    : 'online';
+
+  const statusConfig = {
+    online: { label: 'En ligne', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
+    thinking: { label: 'Réflexion...', color: 'bg-amber-500', textColor: 'text-amber-600' },
+    running: { label: 'Exécution...', color: 'bg-cyan-500', textColor: 'text-cyan-600' },
+  };
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
@@ -146,10 +249,13 @@ export default function ChatView() {
     }
   }, [activeConversationId, fetchMessages]);
 
-  // Auto-scroll
+  // Auto-scroll with smooth behavior
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     }
   }, []);
 
@@ -163,6 +269,22 @@ export default function ChatView() {
     setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100);
   };
 
+  // Format timestamp
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Suggested prompts per agent type
+  const getSuggestedPrompts = () => {
+    const type = selectedAgent?.type;
+    if (type === 'finance') return ['Analyse mes revenus mensuels', 'Crée un tableau de bord financier', 'Prévois les tendances du mois prochain'];
+    if (type === 'data') return ['Analyse mes documents téléchargés', 'Crée un graphique des données', 'Génère un rapport statistique'];
+    if (type === 'support') return ['J\'ai un problème de connexion', 'Comment réinitialiser mon mot de passe ?', 'Aide-moi à configurer mon compte'];
+    if (type === 'sales') return ['Analyse mon pipeline commercial', 'Génère un rapport de prospection', 'Prévois les ventes du trimestre'];
+    return ['Bonjour, comment peux-tu m\'aider ?', 'Quelles sont tes capacités ?', 'Aide-moi avec un projet', 'Analyse des données pour moi'];
+  };
+
   // Send message with SSE streaming
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
@@ -171,6 +293,7 @@ export default function ChatView() {
     setInput('');
     setIsStreaming(true);
     setStreamingContent('');
+    setIsWaitingFirstToken(true);
 
     // Add user message immediately
     const userMsg: StreamMessage = {
@@ -233,6 +356,7 @@ export default function ChatView() {
                 setActiveConversationId(parsed.conversationId);
               }
             } else if (parsed.type === 'token') {
+              if (isWaitingFirstToken) setIsWaitingFirstToken(false);
               fullContent += parsed.content;
               setStreamingContent(fullContent);
             } else if (parsed.type === 'done') {
@@ -309,6 +433,7 @@ export default function ChatView() {
       }
     } finally {
       setIsStreaming(false);
+      setIsWaitingFirstToken(false);
       abortRef.current = null;
     }
   };
@@ -345,31 +470,129 @@ export default function ChatView() {
     }
   };
 
+  const clearChat = () => {
+    if (activeConversationId) {
+      deleteConversation(activeConversationId);
+    } else {
+      setMessages([]);
+      setStreamingContent('');
+    }
+  };
+
+  // Auto-resize textarea
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = 4 * 24; // ~4 lines
+      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    }
+  };
+
+  // Generate image via API
+  const generateImage = async () => {
+    const prompt = imagePrompt.trim();
+    if (!prompt || !token) return;
+
+    setImageGenerating(true);
+
+    // Add user message showing the image request
+    const userMsg: StreamMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: `🎨 Génère une image : ${prompt}`,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    try {
+      const res = await fetch('/api/agents/image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          conversationId: activeConversationId || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur de génération');
+      }
+
+      if (data.imageUrl) {
+        const assistantMsg: StreamMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: `Voici l'image générée pour : *"${prompt}"*\n\n<<<IMAGE>>>${data.imageUrl}<<<END_IMAGE>>>`,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } else {
+        toast.error('Aucune image n\'a pu être générée');
+      }
+    } catch {
+      toast.error('Erreur lors de la génération de l\'image');
+    } finally {
+      setImageGenerating(false);
+      setImagePrompt('');
+      setImageDialogOpen(false);
+    }
+  };
+
+  // Regenerate last assistant message
+  const regenerateLastMessage = () => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+    if (lastUserMsg) {
+      // Remove last assistant message
+      setMessages((prev) => {
+        const idx = prev.length - 1;
+        if (prev[idx]?.role === 'assistant') return prev.slice(0, idx);
+        return prev;
+      });
+      sendMessage(lastUserMsg.content);
+    }
+  };
+
   // Agent selection screen
   if (!selectedAgentId) {
     return (
-      <div className="p-4 md:p-6 max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold">Choisissez un agent</h1>
-          <p className="text-muted-foreground mt-1">Sélectionnez un agent IA pour commencer une conversation</p>
+      <div className="p-4 md:p-6 max-w-4xl mx-auto pb-20 md:pb-6">
+        <div className="text-center mb-6 md:mb-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25 mb-3 md:mb-4"
+          >
+            <Sparkles className="w-7 h-7 md:w-8 md:h-8 text-white" />
+          </motion.div>
+          <h1 className="text-xl md:text-3xl font-bold">Choisissez un agent</h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-1">Sélectionnez un agent IA pour commencer</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {agents.map((agent) => {
+          {agents.map((agent, index) => {
             const IconComp = iconMap[agent.icon] || Bot;
             const colors = colorMap[agent.color] || colorMap.emerald;
             return (
               <motion.button
                 key={agent.id}
-                whileHover={{ scale: 1.02 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   setSelectedAgentId(agent.id);
                   newConversation();
                 }}
-                className={`text-left p-4 rounded-xl border ${colors.bg} border-border hover:shadow-md transition-all`}
+                className={`text-left p-4 rounded-xl border ${colors.bg} border-border hover:shadow-md hover:shadow-emerald-500/5 transition-all group`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center`}>
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <IconComp className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -387,70 +610,78 @@ export default function ChatView() {
 
   const IconComp = iconMap[selectedAgent?.icon || 'Bot'] || Bot;
   const colors = colorMap[selectedAgent?.color || 'emerald'] || colorMap.emerald;
+  const currentStatus = statusConfig[agentStatus];
+
+  // Conversation sidebar content (shared between desktop & mobile drawer)
+  const conversationList = (
+    <>
+      <div className="p-3 border-b">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start"
+          onClick={newConversation}
+        >
+          <MessageSquare className="h-4 w-4 mr-2" />
+          Nouvelle conversation
+        </Button>
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1">
+          {loadingConvos ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          ) : conversations.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              Aucune conversation
+            </p>
+          ) : (
+            conversations.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => selectConversation(conv.id)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 ${
+                  activeConversationId === conv.id
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
+                    : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span className="truncate flex-1">{conv.title}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteConversation(conv.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </button>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+      <div className="p-3 border-t">
+        <button
+          onClick={() => {
+            setSelectedAgentId(null);
+            setActiveConversationId(null);
+          }}
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Changer d&apos;agent
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="flex h-screen">
-      {/* Sidebar - Conversations */}
+      {/* Sidebar - Conversations (desktop) */}
       <div className="w-64 border-r bg-card/50 hidden md:flex flex-col">
-        <div className="p-3 border-b">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            onClick={newConversation}
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Nouvelle conversation
-          </Button>
-        </div>
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
-            {loadingConvos ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            ) : conversations.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                Aucune conversation
-              </p>
-            ) : (
-              conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => selectConversation(conv.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 ${
-                    activeConversationId === conv.id
-                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
-                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span className="truncate flex-1">{conv.title}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteConversation(conv.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </button>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-        <div className="p-3 border-t">
-          <button
-            onClick={() => {
-              setSelectedAgentId(null);
-              setActiveConversationId(null);
-            }}
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Changer d&apos;agent
-          </button>
-        </div>
+        {conversationList}
       </div>
 
       {/* Main chat area */}
@@ -464,43 +695,11 @@ export default function ChatView() {
                 <PanelLeft className="h-4 w-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              <SheetHeader className="p-3 border-b">
-                <SheetTitle className="text-sm">Conversations</SheetTitle>
+            <SheetContent side="left" className="w-80 p-0 flex flex-col bg-card">
+              <SheetHeader className="p-4 border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+                <SheetTitle className="text-sm font-semibold">Conversations</SheetTitle>
               </SheetHeader>
-              <div className="p-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start mb-2"
-                  onClick={newConversation}
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Nouvelle conversation
-                </Button>
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.id}
-                    onClick={() => selectConversation(conv.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors group flex items-center gap-2 ${
-                      activeConversationId === conv.id
-                        ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
-                        : 'hover:bg-accent text-muted-foreground'
-                    }`}
-                  >
-                    <span className="truncate flex-1">{conv.title}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteConversation(conv.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </button>
-                ))}
-              </div>
+              {conversationList}
             </SheetContent>
           </Sheet>
 
@@ -508,25 +707,42 @@ export default function ChatView() {
             <IconComp className="h-4 w-4 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-medium truncate">{selectedAgent?.name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-medium truncate">{selectedAgent?.name}</h2>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${currentStatus.color} ${agentStatus === 'thinking' || agentStatus === 'running' ? 'animate-pulse' : ''}`} />
+                <span className={`text-[10px] ${currentStatus.textColor}`}>{currentStatus.label}</span>
+              </div>
+            </div>
             <p className="text-[11px] text-muted-foreground truncate">{selectedAgent?.description}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden md:flex text-xs text-muted-foreground"
-            onClick={newConversation}
-          >
-            <MessageSquare className="h-3.5 w-3.5 mr-1" />
-            Nouveau
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden md:flex text-xs text-muted-foreground"
+              onClick={newConversation}
+            >
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+              Nouveau
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-red-500"
+              onClick={clearChat}
+              title="Effacer la conversation"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto scroll-smooth [-webkit-overflow-scrolling:touch] overscroll-contain"
         >
           {loadingMessages ? (
             <div className="flex justify-center py-12">
@@ -534,21 +750,25 @@ export default function ChatView() {
             </div>
           ) : messages.length === 0 && !streamingContent ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg mb-4`}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg shadow-emerald-500/10 mb-4`}
+              >
                 <IconComp className="h-8 w-8 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-lg font-semibold mb-2">{selectedAgent?.name}</h3>
               <p className="text-sm text-muted-foreground max-w-md mb-6">
                 {selectedAgent?.description}
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {['Bonjour, comment peux-tu m\'aider ?', 'Quelles sont tes capacités ?', 'Aide-moi avec un projet'].map(
+              <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+                {getSuggestedPrompts().map(
                   (prompt) => (
                     <Button
                       key={prompt}
                       variant="outline"
                       size="sm"
-                      className="text-xs"
+                      className="text-xs hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400 dark:hover:border-emerald-800 transition-colors"
                       onClick={() => sendMessage(prompt)}
                     >
                       {prompt}
@@ -559,12 +779,12 @@ export default function ChatView() {
             </div>
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-              {messages.map((msg) => (
+              {messages.map((msg, idx) => (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                  className={`flex gap-3 group ${msg.role === 'user' ? 'justify-end' : ''}`}
                 >
                   {msg.role === 'assistant' && (
                     <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
@@ -573,23 +793,52 @@ export default function ChatView() {
                       </AvatarFallback>
                     </Avatar>
                   )}
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white'
-                        : 'bg-muted'
-                    }`}
-                  >
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-background [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    )}
+                  <div className={`max-w-[85%] md:max-w-[80%] ${msg.role === 'user' ? 'order-first' : ''}`}>
+                    <div
+                      className={`rounded-2xl px-4 py-3 text-sm ${
+                        msg.role === 'user'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white'
+                          : 'bg-muted'
+                      }`}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <AgentContentRenderer content={msg.content} />
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      )}
+                    </div>
+                    <div className={`flex items-center gap-2 mt-1 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatTime(msg.createdAt)}
+                      </span>
+                      {msg.role === 'assistant' && (
+                        <MessageActions
+                          content={msg.content}
+                          onRegenerate={idx === messages.length - 1 ? regenerateLastMessage : undefined}
+                        />
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
+
+              {/* Waiting for first token indicator */}
+              {isWaitingFirstToken && !streamingContent && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-3"
+                >
+                  <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                    <AvatarFallback className={`text-xs ${colors.bg} ${colors.text}`}>
+                      <IconComp className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="rounded-2xl px-4 py-3 bg-muted">
+                    <TypingIndicator />
+                  </div>
+                </motion.div>
+              )}
 
               {/* Streaming message */}
               {streamingContent && (
@@ -604,10 +853,7 @@ export default function ChatView() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm bg-muted">
-                    <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-background [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
-                      <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                    </div>
-                    <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-1" />
+                    <AgentContentRenderer content={streamingContent} isStreaming />
                   </div>
                 </motion.div>
               )}
@@ -622,12 +868,12 @@ export default function ChatView() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="absolute bottom-24 left-1/2 -translate-x-1/2"
+              className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2"
             >
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full shadow-lg h-8 w-8"
+                className="rounded-full shadow-lg h-8 w-8 bg-background"
                 onClick={scrollToBottom}
               >
                 <ChevronDown className="h-4 w-4" />
@@ -637,61 +883,158 @@ export default function ChatView() {
         </AnimatePresence>
 
         {/* Input bar */}
-        <div className="border-t p-3 bg-card/50 backdrop-blur-sm">
-          <div className="max-w-3xl mx-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-              title="Générer une image"
-              onClick={() => sendMessage('Génère une image de paysage moderne')}
-            >
-              <ImageIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-              title="Entrée vocale"
-            >
-              <Mic className="h-4 w-4" />
-            </Button>
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              placeholder="Écrivez votre message..."
-              className="flex-1"
-              disabled={isStreaming}
-            />
-            {isStreaming ? (
-              <Button
-                variant="destructive"
-                size="icon"
-                className="flex-shrink-0"
-                onClick={stopStreaming}
-              >
-                <Square className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                className="flex-shrink-0 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
-                size="icon"
-                onClick={() => sendMessage()}
-                disabled={!input.trim()}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+        <div className="border-t p-3 bg-card/50 backdrop-blur-sm pb-20 md:pb-3">
+          <div className="max-w-3xl mx-auto">
+            {/* Suggested prompts (shown when chat is active) */}
+            {messages.length > 0 && !isStreaming && !streamingContent && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {getSuggestedPrompts().slice(0, 2).map((prompt) => (
+                  <Button
+                    key={prompt}
+                    variant="outline"
+                    size="sm"
+                    className="text-[10px] h-7 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400 dark:hover:border-emerald-800"
+                    onClick={() => sendMessage(prompt)}
+                  >
+                    {prompt}
+                  </Button>
+                ))}
+              </div>
             )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                title="Générer une image"
+                onClick={() => setImageDialogOpen(true)}
+              >
+                <ImageIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                title="Entrée vocale"
+                onClick={() => toast.info('Entrée vocale bientôt disponible')}
+              >
+                <Mic className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 relative">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    adjustTextareaHeight();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Écrivez votre message... (Ctrl+Entrée pour envoyer)"
+                  className="flex-1 resize-none min-h-[40px] max-h-[96px] py-2.5 pr-3 text-sm"
+                  rows={1}
+                  disabled={isStreaming}
+                />
+              </div>
+              {isStreaming ? (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="flex-shrink-0"
+                  onClick={stopStreaming}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  className="flex-shrink-0 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                  size="icon"
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim()}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Image Generation Dialog */}
+      <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-emerald-500" />
+              Générer une image
+            </DialogTitle>
+            <DialogDescription>
+              Décrivez l'image que vous souhaitez créer. L'IA la générera pour vous.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={imagePrompt}
+              onChange={(e) => setImagePrompt(e.target.value)}
+              placeholder="Ex : Un coucher de soleil sur les montagnes en style aquarelle..."
+              className="resize-none min-h-[80px]"
+              rows={3}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  generateImage();
+                }
+              }}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {['Paysage moderne', 'Portrait stylisé', 'Architecture futuriste', 'Nature abstraite'].map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  variant="outline"
+                  size="sm"
+                  className="text-[10px] h-7 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400 dark:hover:border-emerald-800"
+                  onClick={() => setImagePrompt(suggestion)}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImageDialogOpen(false);
+                setImagePrompt('');
+              }}
+              disabled={imageGenerating}
+            >
+              Annuler
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+              onClick={generateImage}
+              disabled={!imagePrompt.trim() || imageGenerating}
+            >
+              {imageGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Génération...
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Générer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

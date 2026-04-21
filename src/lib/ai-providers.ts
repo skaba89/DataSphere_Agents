@@ -66,29 +66,79 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
   },
 };
 
-// ─── Simple encryption for API keys (obfuscation, not security) ──────
+// ─── AES-256-GCM Encryption for API keys ──────────────────────────────
 
-const ENC_KEY = "ds-ak-2024-secure";
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
+
+const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+
+function getEncryptionKey(): Buffer {
+  const envKey = process.env.ENCRYPTION_KEY;
+  if (envKey) {
+    // Use the env key directly (must be 32 bytes for AES-256)
+    const key = Buffer.from(envKey, "utf-8");
+    if (key.length === 32) return key;
+    // If not 32 bytes, hash it to get a proper 32-byte key
+    return createHash("sha256").update(envKey).digest();
+  }
+  // Fallback: derive from DATABASE_URL for consistency
+  const source = process.env.DATABASE_URL || "datasphere-encryption-fallback-2024";
+  return createHash("sha256").update(source).digest();
+}
 
 function encryptKey(plain: string): string {
-  let result = "";
-  for (let i = 0; i < plain.length; i++) {
-    result += String.fromCharCode(
-      plain.charCodeAt(i) ^ ENC_KEY.charCodeAt(i % ENC_KEY.length)
-    );
-  }
-  return Buffer.from(result, "binary").toString("base64");
+  const key = getEncryptionKey();
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGORITHM, key, iv);
+
+  let encrypted = cipher.update(plain, "utf-8", "base64");
+  encrypted += cipher.final("base64");
+
+  const authTag = cipher.getAuthTag();
+
+  // Format: base64(iv + authTag + encrypted)
+  const combined = Buffer.concat([iv, authTag, Buffer.from(encrypted, "base64")]);
+  return combined.toString("base64");
 }
 
 function decryptKey(enc: string): string {
-  const decoded = Buffer.from(enc, "base64").toString("binary");
-  let result = "";
-  for (let i = 0; i < decoded.length; i++) {
-    result += String.fromCharCode(
-      decoded.charCodeAt(i) ^ ENC_KEY.charCodeAt(i % ENC_KEY.length)
-    );
+  // First try the new AES format
+  try {
+    const key = getEncryptionKey();
+    const combined = Buffer.from(enc, "base64");
+
+    if (combined.length > IV_LENGTH + AUTH_TAG_LENGTH) {
+      const iv = combined.subarray(0, IV_LENGTH);
+      const authTag = combined.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+      const encrypted = combined.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+
+      const decipher = createDecipheriv(ALGORITHM, key, iv);
+      decipher.setAuthTag(authTag);
+
+      let decrypted = decipher.update(encrypted, undefined, "utf-8");
+      decrypted += decipher.final("utf-8");
+      return decrypted;
+    }
+  } catch {
+    // Fall through to legacy decryption
   }
-  return result;
+
+  // Legacy XOR-based decryption for existing keys in database
+  const ENC_KEY_LEGACY = "ds-ak-2024-secure";
+  try {
+    const decoded = Buffer.from(enc, "base64").toString("binary");
+    let result = "";
+    for (let i = 0; i < decoded.length; i++) {
+      result += String.fromCharCode(
+        decoded.charCodeAt(i) ^ ENC_KEY_LEGACY.charCodeAt(i % ENC_KEY_LEGACY.length)
+      );
+    }
+    return result;
+  } catch {
+    throw new Error("Failed to decrypt API key");
+  }
 }
 
 export { encryptKey, decryptKey };

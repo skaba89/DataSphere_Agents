@@ -12,6 +12,8 @@ import DocumentsView from '@/components/datasphere/DocumentsView';
 import PaymentsView from '@/components/datasphere/PaymentsView';
 import SettingsView from '@/components/datasphere/SettingsView';
 import WebBuilderView from '@/components/datasphere/WebBuilderView';
+import MarketplaceView from '@/components/datasphere/MarketplaceView';
+import MobileNav from '@/components/datasphere/MobileNav';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents } = useAppStore();
@@ -67,6 +69,8 @@ function AppContent() {
         return <DocumentsView />;
       case 'payments':
         return <PaymentsView />;
+      case 'marketplace':
+        return <MarketplaceView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -77,7 +81,7 @@ function AppContent() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto pb-14 lg:pb-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView}
@@ -91,6 +95,7 @@ function AppContent() {
           </motion.div>
         </AnimatePresence>
       </main>
+      <MobileNav />
     </div>
   );
 }

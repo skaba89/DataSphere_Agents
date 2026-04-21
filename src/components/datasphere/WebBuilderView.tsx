@@ -21,6 +21,8 @@ import {
   ArrowLeft,
   Bot,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,18 +38,15 @@ const quickPrompts = [
 ];
 
 function extractHtml(text: string): string | null {
-  // Try to extract HTML between ```html and ``` tags
   const match = text.match(/```html\s*\n([\s\S]*?)```/);
   if (match) return match[1].trim();
 
-  // Try to find a complete HTML document
   if (text.includes('<html') && text.includes('</html>')) {
     const start = text.indexOf('<html');
     const end = text.lastIndexOf('</html>') + 7;
     return text.slice(start, end);
   }
 
-  // Try to find any HTML with doctype
   if (text.includes('<!DOCTYPE') && text.includes('</html>')) {
     const start = text.indexOf('<!DOCTYPE');
     const end = text.lastIndexOf('</html>') + 7;
@@ -76,15 +75,14 @@ export default function WebBuilderView() {
   const [extractedHtml, setExtractedHtml] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('preview');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [mobileView, setMobileView] = useState<'chat' | 'preview'>('chat');
 
   const abortRef = useRef<AbortController | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Find webbuilder agent
   const webbuilderAgent = agents.find((a) => a.type === 'webbuilder');
   const agentId = webbuilderAgent?.id || selectedAgentId;
 
-  // Update extracted HTML from streaming content
   useEffect(() => {
     if (streamingContent) {
       const html = extractHtml(streamingContent);
@@ -92,7 +90,6 @@ export default function WebBuilderView() {
     }
   }, [streamingContent]);
 
-  // Also extract from final messages
   useEffect(() => {
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     if (lastAssistant && !isStreaming) {
@@ -180,9 +177,10 @@ export default function WebBuilderView() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setStreamingContent('');
+      // Switch to preview on mobile after response
+      setMobileView('preview');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        // Fallback to non-streaming
         try {
           const fallbackRes = await fetch('/api/agents/chat', {
             method: 'POST',
@@ -251,7 +249,6 @@ export default function WebBuilderView() {
     mobile: '375px',
   };
 
-  // If no webbuilder agent selected yet
   if (!agentId && !webbuilderAgent) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -266,6 +263,170 @@ export default function WebBuilderView() {
       </div>
     );
   }
+
+  // Chat panel content
+  const chatPanel = (
+    <div className="flex flex-col h-full bg-card/30">
+      {/* Quick prompts */}
+      {messages.length === 0 && !isStreaming && (
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-cyan-500" />
+            <span className="text-sm font-medium">Démarrage rapide</span>
+          </div>
+          {quickPrompts.map((qp) => (
+            <button
+              key={qp.label}
+              onClick={() => sendMessage(qp.prompt)}
+              className="w-full text-left p-3 rounded-xl border hover:bg-accent hover:shadow-sm transition-all text-sm"
+            >
+              {qp.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}
+          >
+            {msg.role === 'assistant' && (
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
+                <Globe className="h-3 w-3 text-white" />
+              </div>
+            )}
+            <div
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                msg.role === 'user'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
+                  : 'bg-muted'
+              }`}
+            >
+              {msg.role === 'user' ? (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              ) : (
+                <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-2 [&_code]:text-xs">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {streamingContent && (
+          <div className="flex gap-2">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
+              <Globe className="h-3 w-3 text-white" />
+            </div>
+            <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-muted">
+              <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-2">
+                <ReactMarkdown>{streamingContent}</ReactMarkdown>
+              </div>
+              <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="p-3 border-t">
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="Décrivez votre site web..."
+            disabled={isStreaming}
+            className="flex-1"
+          />
+          {isStreaming ? (
+            <Button variant="destructive" size="icon" onClick={stopStreaming}>
+              <Square className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              size="icon"
+              onClick={() => sendMessage()}
+              disabled={!input.trim()}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Preview panel content
+  const previewPanel = (
+    <div className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+        <div className="border-b px-4 py-1">
+          <TabsList>
+            <TabsTrigger value="preview" className="text-xs">
+              <Eye className="h-3 w-3 mr-1" />
+              Aperçu
+            </TabsTrigger>
+            <TabsTrigger value="code" className="text-xs">
+              <Code2 className="h-3 w-3 mr-1" />
+              Code
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="preview" className="flex-1 m-0 overflow-auto bg-gray-100 dark:bg-gray-900">
+          <div className="flex justify-center p-4 min-h-full">
+            <div
+              className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
+              style={{
+                width: deviceWidths[deviceMode],
+                maxWidth: '100%',
+                height: deviceMode === 'desktop' ? '100%' : deviceMode === 'tablet' ? '1024px' : '667px',
+                minHeight: '400px',
+              }}
+            >
+              {extractedHtml ? (
+                <iframe
+                  ref={iframeRef}
+                  srcDoc={extractedHtml}
+                  className="w-full h-full border-0"
+                  title="Preview"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <Globe className="h-12 w-12 mb-3 opacity-20" />
+                  <p className="text-sm">L&apos;aperçu apparaîtra ici</p>
+                  <p className="text-xs mt-1">Décrivez un site web pour commencer</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="code" className="flex-1 m-0 overflow-auto">
+          {extractedHtml ? (
+            <pre className="p-4 text-xs overflow-auto bg-muted h-full">
+              <code>{extractedHtml}</code>
+            </pre>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <Code2 className="h-12 w-12 mb-3 opacity-20" />
+              <p className="text-sm">Le code apparaîtra ici</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-screen">
@@ -286,7 +447,7 @@ export default function WebBuilderView() {
           <h2 className="text-sm font-medium">Web Builder IA</h2>
           <p className="text-[11px] text-muted-foreground">Créez des sites web par description</p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="hidden sm:flex items-center gap-1">
           {(['desktop', 'tablet', 'mobile'] as const).map((mode) => {
             const icons = { desktop: Monitor, tablet: Tablet, mobile: Smartphone };
             const Icon = icons[mode];
@@ -303,13 +464,13 @@ export default function WebBuilderView() {
             );
           })}
         </div>
-        <Button variant="outline" size="sm" onClick={copyCode} disabled={!extractedHtml}>
+        <Button variant="outline" size="sm" onClick={copyCode} disabled={!extractedHtml} className="hidden sm:flex">
           <Copy className="h-3.5 w-3.5 mr-1" />
           Copier
         </Button>
         <Button
           size="sm"
-          className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+          className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hidden sm:flex"
           onClick={downloadHtml}
           disabled={!extractedHtml}
         >
@@ -318,166 +479,45 @@ export default function WebBuilderView() {
         </Button>
       </div>
 
-      {/* Main content: Chat + Preview */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left: Chat */}
-        <div className="w-96 border-r flex flex-col bg-card/30">
-          {/* Quick prompts */}
-          {messages.length === 0 && !isStreaming && (
-            <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-cyan-500" />
-                <span className="text-sm font-medium">Démarrage rapide</span>
-              </div>
-              {quickPrompts.map((qp) => (
-                <button
-                  key={qp.label}
-                  onClick={() => sendMessage(qp.prompt)}
-                  className="w-full text-left p-3 rounded-xl border hover:bg-accent hover:shadow-sm transition-all text-sm"
-                >
-                  {qp.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
-                    <Globe className="h-3 w-3 text-white" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                    msg.role === 'user'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
-                      : 'bg-muted'
-                  }`}
-                >
-                  {msg.role === 'user' ? (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-2 [&_code]:text-xs">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {streamingContent && (
-              <div className="flex gap-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Globe className="h-3 w-3 text-white" />
-                </div>
-                <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-muted">
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-2">
-                    <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                  </div>
-                  <span className="inline-block w-2 h-4 bg-cyan-500 animate-pulse" />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="p-3 border-t">
-            <div className="flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Décrivez votre site web..."
-                disabled={isStreaming}
-                className="flex-1"
-              />
-              {isStreaming ? (
-                <Button variant="destructive" size="icon" onClick={stopStreaming}>
-                  <Square className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-                  size="icon"
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+      {/* Main content: Desktop = side by side, Mobile = tabs */}
+      {/* Desktop layout */}
+      <div className="flex-1 flex min-h-0 hidden md:flex">
+        <div className="w-96 border-r flex flex-col">
+          {chatPanel}
         </div>
+        <div className="flex-1 min-w-0">
+          {previewPanel}
+        </div>
+      </div>
 
-        {/* Right: Preview / Code */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-            <div className="border-b px-4 py-1">
-              <TabsList>
-                <TabsTrigger value="preview" className="text-xs">
-                  <Eye className="h-3 w-3 mr-1" />
-                  Aperçu
-                </TabsTrigger>
-                <TabsTrigger value="code" className="text-xs">
-                  <Code2 className="h-3 w-3 mr-1" />
-                  Code
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="preview" className="flex-1 m-0 overflow-auto bg-gray-100 dark:bg-gray-900">
-              <div className="flex justify-center p-4 min-h-full">
-                <div
-                  className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
-                  style={{
-                    width: deviceWidths[deviceMode],
-                    maxWidth: '100%',
-                    height: deviceMode === 'desktop' ? '100%' : deviceMode === 'tablet' ? '1024px' : '667px',
-                    minHeight: '400px',
-                  }}
-                >
-                  {extractedHtml ? (
-                    <iframe
-                      ref={iframeRef}
-                      srcDoc={extractedHtml}
-                      className="w-full h-full border-0"
-                      title="Preview"
-                      sandbox="allow-scripts allow-same-origin"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                      <Globe className="h-12 w-12 mb-3 opacity-20" />
-                      <p className="text-sm">L&apos;aperçu apparaîtra ici</p>
-                      <p className="text-xs mt-1">Décrivez un site web pour commencer</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="code" className="flex-1 m-0 overflow-auto">
-              {extractedHtml ? (
-                <pre className="p-4 text-xs overflow-auto bg-muted h-full">
-                  <code>{extractedHtml}</code>
-                </pre>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <Code2 className="h-12 w-12 mb-3 opacity-20" />
-                  <p className="text-sm">Le code apparaîtra ici</p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+      {/* Mobile layout: tabs */}
+      <div className="flex-1 flex flex-col md:hidden">
+        <div className="flex border-b">
+          <button
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+              mobileView === 'chat'
+                ? 'text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500'
+                : 'text-muted-foreground'
+            }`}
+            onClick={() => setMobileView('chat')}
+          >
+            <MessageSquare className="h-3.5 w-3.5 inline mr-1.5" />
+            Chat
+          </button>
+          <button
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+              mobileView === 'preview'
+                ? 'text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500'
+                : 'text-muted-foreground'
+            }`}
+            onClick={() => setMobileView('preview')}
+          >
+            <Eye className="h-3.5 w-3.5 inline mr-1.5" />
+            Aperçu
+          </button>
+        </div>
+        <div className="flex-1 min-h-0">
+          {mobileView === 'chat' ? chatPanel : previewPanel}
         </div>
       </div>
     </div>
