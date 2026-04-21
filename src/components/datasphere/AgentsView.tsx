@@ -1,25 +1,44 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAppStore } from '@/lib/store';
+import { toast } from 'sonner';
 import {
-  Bot,
   Headphones,
   TrendingUp,
   Database,
   Target,
-  ArrowRight,
-  Sparkles,
-  Trash2,
-  Edit3,
-  Star,
-  User,
   Globe,
+  Bot,
+  Plus,
+  Trash2,
+  MessageSquare,
+  Globe as GlobeIcon,
+  Loader2,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,376 +50,390 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useAppStore } from '@/lib/store';
-import { toast } from 'sonner';
-import AgentBuilder from './AgentBuilder';
-
-interface Agent {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  systemPrompt: string;
-  icon: string;
-  color: string;
-  isDefault: boolean;
-  creatorId?: string | null;
-}
 
 const iconMap: Record<string, React.ElementType> = {
   Headphones,
   TrendingUp,
   Database,
   Target,
-  Bot,
   Globe,
+  Bot,
 };
 
-const colorConfig: Record<string, {
-  gradient: string;
-  bg: string;
-  border: string;
-  badge: string;
-  badgeText: string;
-  iconBg: string;
-  iconColor: string;
-}> = {
+const colorMap: Record<string, { gradient: string; bg: string; text: string; border: string }> = {
   emerald: {
     gradient: 'from-emerald-500 to-teal-600',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    border: 'border-emerald-200 dark:border-emerald-800/50',
-    badge: 'bg-emerald-100 dark:bg-emerald-900/50',
-    badgeText: 'text-emerald-700 dark:text-emerald-400',
-    iconBg: 'bg-emerald-100 dark:bg-emerald-900/50',
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/50',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-800',
   },
   amber: {
     gradient: 'from-amber-500 to-orange-600',
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    border: 'border-amber-200 dark:border-amber-800/50',
-    badge: 'bg-amber-100 dark:bg-amber-900/50',
-    badgeText: 'text-amber-700 dark:text-amber-400',
-    iconBg: 'bg-amber-100 dark:bg-amber-900/50',
-    iconColor: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-amber-50 dark:bg-amber-950/50',
+    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-amber-200 dark:border-amber-800',
   },
   violet: {
     gradient: 'from-violet-500 to-purple-600',
-    bg: 'bg-violet-50 dark:bg-violet-950/30',
-    border: 'border-violet-200 dark:border-violet-800/50',
-    badge: 'bg-violet-100 dark:bg-violet-900/50',
-    badgeText: 'text-violet-700 dark:text-violet-400',
-    iconBg: 'bg-violet-100 dark:bg-violet-900/50',
-    iconColor: 'text-violet-600 dark:text-violet-400',
+    bg: 'bg-violet-50 dark:bg-violet-950/50',
+    text: 'text-violet-700 dark:text-violet-400',
+    border: 'border-violet-200 dark:border-violet-800',
   },
   rose: {
     gradient: 'from-rose-500 to-pink-600',
-    bg: 'bg-rose-50 dark:bg-rose-950/30',
-    border: 'border-rose-200 dark:border-rose-800/50',
-    badge: 'bg-rose-100 dark:bg-rose-900/50',
-    badgeText: 'text-rose-700 dark:text-rose-400',
-    iconBg: 'bg-rose-100 dark:bg-rose-900/50',
-    iconColor: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-rose-50 dark:bg-rose-950/50',
+    text: 'text-rose-700 dark:text-rose-400',
+    border: 'border-rose-200 dark:border-rose-800',
   },
   cyan: {
-    gradient: 'from-cyan-500 to-teal-600',
-    bg: 'bg-cyan-50 dark:bg-cyan-950/30',
-    border: 'border-cyan-200 dark:border-cyan-800/50',
-    badge: 'bg-cyan-100 dark:bg-cyan-900/50',
-    badgeText: 'text-cyan-700 dark:text-cyan-400',
-    iconBg: 'bg-cyan-100 dark:bg-cyan-900/50',
-    iconColor: 'text-cyan-600 dark:text-cyan-400',
+    gradient: 'from-cyan-500 to-blue-600',
+    bg: 'bg-cyan-50 dark:bg-cyan-950/50',
+    text: 'text-cyan-700 dark:text-cyan-400',
+    border: 'border-cyan-200 dark:border-cyan-800',
   },
   orange: {
     gradient: 'from-orange-500 to-red-600',
-    bg: 'bg-orange-50 dark:bg-orange-950/30',
-    border: 'border-orange-200 dark:border-orange-800/50',
-    badge: 'bg-orange-100 dark:bg-orange-900/50',
-    badgeText: 'text-orange-700 dark:text-orange-400',
-    iconBg: 'bg-orange-100 dark:bg-orange-900/50',
-    iconColor: 'text-orange-600 dark:text-orange-400',
+    bg: 'bg-orange-50 dark:bg-orange-950/50',
+    text: 'text-orange-700 dark:text-orange-400',
+    border: 'border-orange-200 dark:border-orange-800',
   },
 };
 
 const typeLabels: Record<string, string> = {
   support: 'Support',
   finance: 'Finance',
-  data: 'Données + RAG',
+  data: 'Data / RAG',
   sales: 'Commercial',
   webbuilder: 'Web Builder',
   custom: 'Personnalisé',
 };
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
-
 export default function AgentsView() {
-  const { token, setSelectedAgentId, setCurrentView } = useAppStore();
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const { token, agents, setAgents, setCurrentView, setSelectedAgentId } = useAppStore();
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const fetchAgents = useCallback(async () => {
-    if (!token) return;
+  // Form state
+  const [formName, setFormName] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [formPrompt, setFormPrompt] = useState('');
+  const [formType, setFormType] = useState('custom');
+  const [formIcon, setFormIcon] = useState('Bot');
+  const [formColor, setFormColor] = useState('emerald');
+
+  const fetchAgents = async () => {
     try {
       const res = await fetch('/api/agents', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        setAgents(json.agents);
-      } else {
-        console.error('Agents fetch error:', res.status);
-      }
-    } catch (err) {
-      console.error('Agents network error:', err);
+      const data = await res.json();
+      if (data.agents) setAgents(data.agents);
+    } catch {
+      toast.error('Erreur lors du chargement des agents');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  };
 
   useEffect(() => {
     fetchAgents();
-  }, [fetchAgents]);
+  }, [token]);
 
-  const handleStartChat = (agentId: string, agentType: string) => {
-    if (agentType === 'webbuilder') {
-      setCurrentView('webbuilder');
-      setSelectedAgentId(agentId);
-    } else {
-      setCurrentView('chat');
-      setSelectedAgentId(agentId);
+  const handleChat = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setCurrentView('chat');
+  };
+
+  const handleWebBuilder = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setCurrentView('webbuilder');
+  };
+
+  const handleCreate = async () => {
+    if (!formName || !formDesc || !formPrompt) {
+      toast.error('Nom, description et prompt système sont requis');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch('/api/agents/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: formName,
+          description: formDesc,
+          systemPrompt: formPrompt,
+          type: formType,
+          icon: formIcon,
+          color: formColor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Erreur lors de la création');
+        return;
+      }
+      toast.success(`Agent "${formName}" créé avec succès !`);
+      setDialogOpen(false);
+      setFormName('');
+      setFormDesc('');
+      setFormPrompt('');
+      fetchAgents();
+    } catch {
+      toast.error('Erreur lors de la création de l\'agent');
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleDelete = async (agentId: string, agentName: string) => {
-    if (!token) {
-      toast.error('Session expirée. Reconnectez-vous.');
-      return;
-    }
     try {
       const res = await fetch(`/api/agents/delete?id=${agentId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        toast.success(`Agent "${agentName}" supprimé`);
-        fetchAgents();
-      } else {
-        const data = await res.json();
+      const data = await res.json();
+      if (!res.ok) {
         toast.error(data.error || 'Erreur lors de la suppression');
+        return;
       }
+      toast.success(`Agent "${agentName}" supprimé`);
+      fetchAgents();
     } catch {
-      toast.error('Erreur réseau');
+      toast.error('Erreur lors de la suppression');
     }
   };
 
-  const defaultAgents = agents.filter((a) => a.isDefault);
-  const customAgents = agents.filter((a) => !a.isDefault);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="p-4 md:p-6 lg:p-8 space-y-8"
-    >
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/50">
-            <Sparkles className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Agents IA</h1>
-            <p className="text-muted-foreground mt-1">
-              Créez et gérez vos agents IA personnalisés
-            </p>
-          </div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Agents IA</h1>
+          <p className="text-muted-foreground mt-1">
+            Choisissez un agent pour commencer une conversation
+          </p>
         </div>
-        <AgentBuilder onAgentCreated={fetchAgents} />
-      </motion.div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25">
+              <Plus className="h-4 w-4 mr-2" />
+              Créer un agent
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Créer un nouvel agent</DialogTitle>
+              <DialogDescription>
+                Personnalisez votre agent IA avec un nom, une description et un prompt système.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Nom de l&apos;agent</Label>
+                <Input
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Ex: Agent Marketing IA"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Décrivez ce que fait cet agent..."
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Prompt système</Label>
+                <Textarea
+                  value={formPrompt}
+                  onChange={(e) => setFormPrompt(e.target.value)}
+                  placeholder="Instructions pour l'agent..."
+                  rows={4}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="support">Support</SelectItem>
+                      <SelectItem value="finance">Finance</SelectItem>
+                      <SelectItem value="data">Data / RAG</SelectItem>
+                      <SelectItem value="sales">Commercial</SelectItem>
+                      <SelectItem value="custom">Personnalisé</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Icône</Label>
+                  <Select value={formIcon} onValueChange={setFormIcon}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bot">🤖 Bot</SelectItem>
+                      <SelectItem value="Headphones">🎧 Headphones</SelectItem>
+                      <SelectItem value="TrendingUp">📈 TrendingUp</SelectItem>
+                      <SelectItem value="Database">🗄️ Database</SelectItem>
+                      <SelectItem value="Target">🎯 Target</SelectItem>
+                      <SelectItem value="Globe">🌐 Globe</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Couleur</Label>
+                <Select value={formColor} onValueChange={setFormColor}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="emerald">💚 Émeraude</SelectItem>
+                    <SelectItem value="amber">🟡 Ambre</SelectItem>
+                    <SelectItem value="violet">💜 Violet</SelectItem>
+                    <SelectItem value="rose">💗 Rose</SelectItem>
+                    <SelectItem value="cyan">💙 Cyan</SelectItem>
+                    <SelectItem value="orange">🧡 Orange</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleCreate}
+                disabled={creating}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+              >
+                {creating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Créer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-      {/* Default Agents */}
-      {defaultAgents.length > 0 && (
-        <motion.div variants={itemVariants} className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-500" />
-            <h2 className="text-lg font-semibold">Agents par Défaut</h2>
-            <Badge variant="secondary" className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-0">
-              {defaultAgents.length}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {loading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <Card key={i} className="overflow-hidden">
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <Skeleton className="h-14 w-14 rounded-xl" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-5 w-32" />
-                          <Skeleton className="h-4 w-20" />
-                          <Skeleton className="h-12 w-full" />
-                        </div>
-                      </div>
-                      <Skeleton className="h-10 w-full mt-4" />
-                    </CardContent>
-                  </Card>
-                ))
-              : defaultAgents.map((agent) => {
-                  const colors = colorConfig[agent.color] || colorConfig.emerald;
-                  const IconComponent = iconMap[agent.icon] || Bot;
-                  return (
-                    <motion.div key={agent.id} variants={itemVariants}>
-                      <Card className={`overflow-hidden border ${colors.border} hover:shadow-lg transition-all duration-300 group`}>
-                        <div className={`h-1.5 bg-gradient-to-r ${colors.gradient}`} />
-                        <CardContent className="p-5">
-                          <div className="flex items-start gap-3">
-                            <div className={`p-2.5 rounded-xl ${colors.iconBg} shrink-0`}>
-                              <IconComponent className={`h-6 w-6 ${colors.iconColor}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold truncate text-sm">{agent.name}</h3>
-                              <Badge
-                                variant="secondary"
-                                className={`mt-1 ${colors.badge} ${colors.badgeText} border-0 text-[10px]`}
-                              >
-                                {typeLabels[agent.type] || agent.type}
-                              </Badge>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-3 line-clamp-2">
-                            {agent.description}
-                          </p>
+      {/* Agent Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {agents.map((agent, index) => {
+          const IconComp = iconMap[agent.icon] || Bot;
+          const colors = colorMap[agent.color] || colorMap.emerald;
+          const isWebBuilder = agent.type === 'webbuilder';
+
+          return (
+            <motion.div
+              key={agent.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <Card
+                className={`group relative overflow-hidden border ${colors.border} hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300`}
+              >
+                {/* Gradient bar */}
+                <div className={`h-1.5 bg-gradient-to-r ${colors.gradient}`} />
+
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div
+                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg`}
+                    >
+                      <IconComp className="h-6 w-6 text-white" />
+                    </div>
+                    <Badge variant="secondary" className={`text-[10px] ${colors.bg} ${colors.text}`}>
+                      {typeLabels[agent.type] || agent.type}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-base mt-3">{agent.name}</CardTitle>
+                  <CardDescription className="text-xs line-clamp-2">
+                    {agent.description}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  <div className="flex gap-2">
+                    {isWebBuilder ? (
+                      <Button
+                        onClick={() => handleWebBuilder(agent.id)}
+                        className={`flex-1 bg-gradient-to-r ${colors.gradient} text-white shadow-sm hover:opacity-90`}
+                        size="sm"
+                      >
+                        <GlobeIcon className="h-3.5 w-3.5 mr-1.5" />
+                        Créer un site
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleChat(agent.id)}
+                        className={`flex-1 bg-gradient-to-r ${colors.gradient} text-white shadow-sm hover:opacity-90`}
+                        size="sm"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                        Discuter
+                      </Button>
+                    )}
+                    {!agent.isDefault && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
                           <Button
-                            onClick={() => handleStartChat(agent.id, agent.type)}
-                            className={`w-full mt-4 bg-gradient-to-r ${colors.gradient} text-white shadow-md text-sm h-9`}
+                            variant="outline"
+                            size="sm"
+                            className="text-muted-foreground hover:text-red-500 hover:border-red-300"
                           >
-                            {agent.type === 'webbuilder' ? 'Créer un site' : 'Discuter'}
-                            <ArrowRight className="h-3.5 w-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Custom Agents */}
-      <motion.div variants={itemVariants} className="space-y-4">
-        <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-emerald-500" />
-          <h2 className="text-lg font-semibold">Mes Agents Personnalisés</h2>
-          {customAgents.length > 0 && (
-            <Badge variant="secondary" className="bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-400 border-0">
-              {customAgents.length}
-            </Badge>
-          )}
-        </div>
-
-        {customAgents.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {customAgents.map((agent) => {
-              const colors = colorConfig[agent.color] || colorConfig.emerald;
-              const IconComponent = iconMap[agent.icon] || Bot;
-              return (
-                <motion.div key={agent.id} variants={itemVariants}>
-                  <Card className={`overflow-hidden border ${colors.border} hover:shadow-lg transition-all duration-300 group`}>
-                    <div className={`h-1.5 bg-gradient-to-r ${colors.gradient}`} />
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2.5 rounded-xl ${colors.iconBg} shrink-0`}>
-                          <IconComponent className={`h-6 w-6 ${colors.iconColor}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold truncate text-sm">{agent.name}</h3>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <Badge
-                              variant="secondary"
-                              className={`${colors.badge} ${colors.badgeText} border-0 text-[10px]`}
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Supprimer l&apos;agent ?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Êtes-vous sûr de vouloir supprimer l&apos;agent &quot;{agent.name}&quot; ?
+                              Cette action est irréversible.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(agent.id, agent.name)}
+                              className="bg-red-500 hover:bg-red-600"
                             >
-                              {typeLabels[agent.type] || agent.type}
-                            </Badge>
-                            {agent.type === 'data' && (
-                              <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-400 border-0 text-[10px]">
-                                RAG
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3 line-clamp-2">
-                        {agent.description}
-                      </p>
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          onClick={() => handleStartChat(agent.id, agent.type)}
-                          className={`flex-1 bg-gradient-to-r ${colors.gradient} text-white shadow-md text-sm h-9`}
-                        >
-                          {agent.type === 'webbuilder' ? 'Créer un site' : 'Discuter'}
-                          <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0 h-9 w-9 border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Supprimer l&apos;agent ?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Êtes-vous sûr de vouloir supprimer l&apos;agent &quot;{agent.name}&quot; ? Cette action est irréversible.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(agent.id, agent.name)}
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Supprimer
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        ) : (
-          !loading && (
-            <Card className="border-dashed border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/10">
-              <CardContent className="p-8 text-center">
-                <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <h3 className="font-semibold">Pas encore d&apos;agents personnalisés</h3>
-                <p className="text-sm text-muted-foreground mt-1 mb-4">
-                  Créez votre propre agent IA avec un prompt système, une icône et une couleur personnalisés.
-                </p>
-                <AgentBuilder onAgentCreated={fetchAgents} />
-              </CardContent>
-            </Card>
-          )
-        )}
-      </motion.div>
-    </motion.div>
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

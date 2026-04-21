@@ -14,7 +14,7 @@ import SettingsView from '@/components/datasphere/SettingsView';
 import WebBuilderView from '@/components/datasphere/WebBuilderView';
 
 function AppContent() {
-  const { user, currentView, setSidebarOpen } = useAppStore();
+  const { user, currentView, setSidebarOpen, token, setAgents } = useAppStore();
 
   // Auto-close sidebar on mobile
   useEffect(() => {
@@ -29,6 +29,25 @@ function AppContent() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [setSidebarOpen]);
+
+  // Load agents on auth
+  useEffect(() => {
+    if (!token) return;
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch('/api/agents', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.agents) setAgents(data.agents);
+        }
+      } catch {
+        // silent
+      }
+    };
+    fetchAgents();
+  }, [token, setAgents]);
 
   if (!user) {
     return <LoginView />;

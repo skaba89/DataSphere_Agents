@@ -1,994 +1,697 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '@/lib/store';
+import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 import {
   Send,
-  Loader2,
+  Square,
   Bot,
-  ArrowLeft,
-  Sparkles,
-  MessageSquare,
   Headphones,
   TrendingUp,
   Database,
   Target,
-  Plus,
-  Trash2,
-  Clock,
-  FileText,
-  Mic,
-  MicOff,
-  Image as ImageIcon,
-  Download,
-  StopCircle,
   Globe,
-  Cpu,
-  Settings,
+  ArrowLeft,
+  Loader2,
+  ImageIcon,
+  Mic,
+  ChevronDown,
+  MessageSquare,
+  Trash2,
+  X,
+  PanelLeft,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useAppStore } from '@/lib/store';
-import { PROVIDERS, ProviderId } from '@/lib/ai-providers';
-import { toast } from 'sonner';
-import ReactMarkdown from 'react-markdown';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
-interface Agent {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  systemPrompt: string;
-  icon: string;
-  color: string;
-  isDefault: boolean;
-}
+const iconMap: Record<string, React.ElementType> = {
+  Headphones, TrendingUp, Database, Target, Globe, Bot,
+};
 
-interface Conversation {
-  id: string;
-  agentId: string;
-  title: string;
-  updatedAt: string;
-  messages?: { role: string; content: string; createdAt: string }[];
-}
+const colorMap: Record<string, { gradient: string; text: string; bg: string }> = {
+  emerald: { gradient: 'from-emerald-500 to-teal-600', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900' },
+  amber: { gradient: 'from-amber-500 to-orange-600', text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900' },
+  violet: { gradient: 'from-violet-500 to-purple-600', text: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900' },
+  rose: { gradient: 'from-rose-500 to-pink-600', text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-900' },
+  cyan: { gradient: 'from-cyan-500 to-blue-600', text: 'text-cyan-700 dark:text-cyan-400', bg: 'bg-cyan-100 dark:bg-cyan-900' },
+  orange: { gradient: 'from-orange-500 to-red-600', text: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900' },
+};
 
-interface Message {
+interface StreamMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  createdAt: string;
 }
 
-const iconMap: Record<string, React.ElementType> = {
-  Headphones, TrendingUp, Database, Target, Bot, Globe,
-};
-
-const colorConfig: Record<string, { gradient: string; iconBg: string; iconColor: string }> = {
-  emerald: { gradient: 'from-emerald-500 to-teal-600', iconBg: 'bg-emerald-100 dark:bg-emerald-900/50', iconColor: 'text-emerald-600 dark:text-emerald-400' },
-  amber: { gradient: 'from-amber-500 to-orange-600', iconBg: 'bg-amber-100 dark:bg-amber-900/50', iconColor: 'text-amber-600 dark:text-amber-400' },
-  violet: { gradient: 'from-violet-500 to-purple-600', iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-600 dark:text-violet-400' },
-  rose: { gradient: 'from-rose-500 to-pink-600', iconBg: 'bg-rose-100 dark:bg-rose-900/50', iconColor: 'text-rose-600 dark:text-rose-400' },
-  cyan: { gradient: 'from-cyan-500 to-teal-600', iconBg: 'bg-cyan-100 dark:bg-cyan-900/50', iconColor: 'text-cyan-600 dark:text-cyan-400' },
-  orange: { gradient: 'from-orange-500 to-red-600', iconBg: 'bg-orange-100 dark:bg-orange-900/50', iconColor: 'text-orange-600 dark:text-orange-400' },
-};
-
-const typeLabels: Record<string, string> = {
-  support: 'Support', finance: 'Finance', data: 'Données + RAG', sales: 'Commercial', webbuilder: 'Web Builder', custom: 'Personnalisé',
-};
-
 export default function ChatView() {
-  const { token, selectedAgentId, setSelectedAgentId, activeConversationId, setActiveConversationId, setCurrentView, selectedProvider, setSelectedProvider, availableProviders } = useAppStore();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const {
+    token,
+    agents,
+    selectedAgentId,
+    setSelectedAgentId,
+    activeConversationId,
+    setActiveConversationId,
+    setCurrentView,
+    isStreaming,
+    setIsStreaming,
+  } = useAppStore();
+
+  const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const [loadingAgents, setLoadingAgents] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [showConversations, setShowConversations] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [showImageDialog, setShowImageDialog] = useState(false);
-  const [imagePrompt, setImagePrompt] = useState('');
-  const [generatingImage, setGeneratingImage] = useState(false);
-  const [showProviderMenu, setShowProviderMenu] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loadingConvos, setLoadingConvos] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
 
-  useEffect(() => { scrollToBottom(); }, [messages, streamingContent, scrollToBottom]);
-
-  // Fetch agents and set current agent based on selectedAgentId
-  useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const res = await fetch('/api/agents', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          setAgents(json.agents);
-        }
-      } catch { /* silent */ } finally { setLoadingAgents(false); }
-    };
-    fetchAgents();
-  }, [token]);
-
-  // Set current agent when selectedAgentId or agents list changes
-  useEffect(() => {
-    if (selectedAgentId && agents.length > 0) {
-      if (selectedAgentId === 'data') {
-        const dataAgent = agents.find((a: Agent) => a.type === 'data');
-        if (dataAgent) {
-          setCurrentAgent(dataAgent);
-          setSelectedAgentId(dataAgent.id);
-        }
-      } else if (selectedAgentId === 'webbuilder') {
-        const wbAgent = agents.find((a: Agent) => a.type === 'webbuilder');
-        if (wbAgent) {
-          setSelectedAgentId(wbAgent.id);
-          setCurrentView('webbuilder');
-        }
-      } else {
-        const agent = agents.find((a: Agent) => a.id === selectedAgentId);
-        if (agent) {
-          // Redirect webbuilder agents to the WebBuilder view
-          if (agent.type === 'webbuilder') {
-            setCurrentView('webbuilder');
-            return;
-          }
-          setCurrentAgent(agent);
-        }
-      }
-    }
-  }, [selectedAgentId, agents]);
-
-  // Fetch conversations when agent is selected
-  useEffect(() => {
-    if (currentAgent) {
-      fetchConversations();
-      inputRef.current?.focus();
-    }
-  }, [currentAgent]);
-
-  // Load messages when conversation is selected
-  useEffect(() => {
-    if (activeConversationId) {
-      loadConversationMessages(activeConversationId);
-    }
-  }, [activeConversationId]);
-
-  const fetchConversations = async () => {
-    if (!currentAgent || !token) return;
+  // Fetch conversations
+  const fetchConversations = useCallback(async () => {
+    if (!token || !selectedAgentId) return;
+    setLoadingConvos(true);
     try {
-      const res = await fetch(`/api/conversations?agentId=${currentAgent.id}`, {
+      const res = await fetch(`/api/conversations?agentId=${selectedAgentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        setConversations(json.conversations);
-      }
-    } catch { /* silent */ }
-  };
+      const data = await res.json();
+      if (data.conversations) setConversations(data.conversations);
+    } catch {
+      // silent
+    } finally {
+      setLoadingConvos(false);
+    }
+  }, [token, selectedAgentId]);
 
-  const loadConversationMessages = async (convId: string) => {
+  // Fetch messages for a conversation
+  const fetchMessages = useCallback(async (convId: string) => {
+    if (!token) return;
     setLoadingMessages(true);
     try {
       const res = await fetch(`/api/conversations/messages?conversationId=${convId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        const loaded: Message[] = json.messages.map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: new Date(m.createdAt),
-        }));
-        setMessages(loaded);
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(
+          data.messages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          }))
+        );
       }
-    } catch { /* silent */ } finally { setLoadingMessages(false); }
-  };
-
-  const handleSelectAgent = (agent: Agent) => {
-    setSelectedAgentId(agent.id);
-    setCurrentAgent(agent);
-    setActiveConversationId(null);
-    setMessages([]);
-    setStreamingContent('');
-    setShowConversations(false);
-  };
-
-  const handleNewChat = () => {
-    setActiveConversationId(null);
-    setMessages([]);
-    setStreamingContent('');
-    setShowConversations(false);
-  };
-
-  const handleSelectConversation = (conv: Conversation) => {
-    setActiveConversationId(conv.id);
-    setStreamingContent('');
-    setShowConversations(false);
-  };
-
-  const handleDeleteConversation = async (convId: string) => {
-    try {
-      const res = await fetch(`/api/conversations?id=${convId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        toast.success('Conversation supprimée');
-        fetchConversations();
-        if (activeConversationId === convId) {
-          setActiveConversationId(null);
-          setMessages([]);
-        }
-      }
-    } catch { toast.error('Erreur réseau'); }
-  };
-
-  const handleSendMessage = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || !currentAgent || sending) return;
-    if (!token) {
-      toast.error('Session expirée. Reconnectez-vous.');
-      return;
+    } catch {
+      toast.error('Erreur lors du chargement des messages');
+    } finally {
+      setLoadingMessages(false);
     }
+  }, [token]);
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
-    };
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
 
-    setMessages((prev) => [...prev, userMessage]);
+  useEffect(() => {
+    if (activeConversationId) {
+      fetchMessages(activeConversationId);
+    } else {
+      setMessages([]);
+    }
+  }, [activeConversationId, fetchMessages]);
+
+  // Auto-scroll
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, streamingContent, scrollToBottom]);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100);
+  };
+
+  // Send message with SSE streaming
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim();
+    if (!text || !selectedAgentId || !token || isStreaming) return;
+
     setInput('');
-    setSending(true);
+    setIsStreaming(true);
     setStreamingContent('');
 
+    // Add user message immediately
+    const userMsg: StreamMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      // Try streaming first
-      abortControllerRef.current = new AbortController();
-      
-      const response = await fetch('/api/agents/chat-stream', {
+      const res = await fetch('/api/agents/chat-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          agentId: currentAgent.id,
-          message: userMessage.content,
+          agentId: selectedAgentId,
+          message: text,
           conversationId: activeConversationId || undefined,
-          provider: selectedProvider !== 'auto' ? selectedProvider : undefined,
         }),
-        signal: abortControllerRef.current.signal,
+        signal: controller.signal,
       });
 
-      if (!response.ok) {
-        // Streaming failed, fallback to non-streaming
-        throw new Error('stream_failed');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Pas de stream');
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader');
 
       const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
       let convId = activeConversationId;
-      let fullText = '';
-      let streamWorked = false;
-      let sseBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        sseBuffer += chunk;
-
-        // Split by newlines but keep the last incomplete line in the buffer
-        const lines = sseBuffer.split('\n');
-        sseBuffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
+          const dataStr = trimmed.slice(6);
           try {
-            const data = JSON.parse(trimmed.slice(6));
+            const parsed = JSON.parse(dataStr);
 
-            if (data.type === 'meta') {
-              convId = data.conversationId;
-              setActiveConversationId(data.conversationId);
-            } else if (data.type === 'token') {
-              fullText += data.content;
-              setStreamingContent(fullText);
-              streamWorked = true;
-            } else if (data.type === 'done') {
-              const assistantMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: data.fullResponse || fullText,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, assistantMessage]);
-              setStreamingContent('');
-              setActiveConversationId(data.conversationId);
-              fetchConversations();
-            } else if (data.type === 'error') {
-              toast.error(data.content);
-              setStreamingContent('');
+            if (parsed.type === 'meta') {
+              convId = parsed.conversationId;
+              if (!activeConversationId) {
+                setActiveConversationId(parsed.conversationId);
+              }
+            } else if (parsed.type === 'token') {
+              fullContent += parsed.content;
+              setStreamingContent(fullContent);
+            } else if (parsed.type === 'done') {
+              convId = parsed.conversationId;
+              if (!activeConversationId) {
+                setActiveConversationId(parsed.conversationId);
+              }
+              fullContent = parsed.fullResponse || fullContent;
+            } else if (parsed.type === 'error') {
+              toast.error(parsed.content || 'Erreur lors du streaming');
             }
           } catch {
-            // Ignore parse errors for incomplete data
+            // skip unparseable lines
           }
         }
       }
 
-      // Process remaining buffer
-      if (sseBuffer.trim()) {
-        const trimmed = sseBuffer.trim();
-        if (trimmed.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(trimmed.slice(6));
-            if (data.type === 'done') {
-              const assistantMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: data.fullResponse || fullText,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, assistantMessage]);
-              setStreamingContent('');
-              if (data.conversationId) setActiveConversationId(data.conversationId);
-              fetchConversations();
-            }
-          } catch { /* ignore */ }
-        }
-      }
-
-      // If streaming produced content but no done event, add the message manually
-      if (streamWorked && fullText) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: fullText,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-        setStreamingContent('');
-        if (convId) setActiveConversationId(convId);
-        fetchConversations();
-      }
+      // Add assistant message
+      const assistantMsg: StreamMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: fullContent,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+      setStreamingContent('');
+      fetchConversations();
     } catch (err: any) {
       if (err.name === 'AbortError') {
+        // User cancelled
+        if (streamingContent) {
+          const assistantMsg: StreamMessage = {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: streamingContent + '\n\n*[Génération interrompue]*',
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+        }
         setStreamingContent('');
       } else {
-        // Fallback to non-streaming chat
+        // Fallback to non-streaming
         try {
-          const res = await fetch('/api/agents/chat', {
+          const fallbackRes = await fetch('/api/agents/chat', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-              agentId: currentAgent.id,
-              message: userMessage.content,
+              agentId: selectedAgentId,
+              message: text,
               conversationId: activeConversationId || undefined,
-              provider: selectedProvider !== 'auto' ? selectedProvider : undefined,
             }),
           });
-
-          const data = await res.json();
-          if (res.ok && data.response) {
-            if (data.conversationId && !activeConversationId) {
-              setActiveConversationId(data.conversationId);
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.response) {
+            if (fallbackData.conversationId && !activeConversationId) {
+              setActiveConversationId(fallbackData.conversationId);
             }
-            const assistantMessage: Message = {
-              id: (Date.now() + 1).toString(),
+            const assistantMsg: StreamMessage = {
+              id: `assistant-${Date.now()}`,
               role: 'assistant',
-              content: data.response,
-              timestamp: new Date(),
+              content: fallbackData.response,
+              createdAt: new Date().toISOString(),
             };
-            setMessages((prev) => [...prev, assistantMessage]);
+            setMessages((prev) => [...prev, assistantMsg]);
             fetchConversations();
-          } else {
-            toast.error(data.error || 'Erreur serveur');
           }
         } catch {
-          toast.error('Erreur de connexion au serveur');
+          toast.error('Erreur lors de l\'envoi du message');
         }
         setStreamingContent('');
       }
     } finally {
-      setSending(false);
-      abortControllerRef.current = null;
+      setIsStreaming(false);
+      abortRef.current = null;
     }
   };
 
-  const handleStopStreaming = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setSending(false);
-      setStreamingContent('');
+  const stopStreaming = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
     }
   };
 
-  // Voice recording
-  const handleStartRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      const audioChunks: BlobPart[] = [];
-
-      mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        try {
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          const res = await fetch('/api/agents/speech', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.text) {
-              setInput((prev) => prev ? `${prev} ${data.text}` : data.text);
-            } else {
-              toast.info(data.message || 'Parole non détectée');
-            }
-          }
-        } catch {
-          toast.error('Erreur de transcription');
-        }
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch {
-      toast.error('Microphone non disponible');
-    }
+  const selectConversation = (convId: string) => {
+    setActiveConversationId(convId);
   };
 
-  const handleStopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  // Image generation
-  const handleGenerateImage = async () => {
-    if (!token || !imagePrompt.trim()) return;
-    setGeneratingImage(true);
-    try {
-      const res = await fetch('/api/agents/image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          prompt: imagePrompt.trim(),
-          conversationId: activeConversationId || undefined,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.imageUrl) {
-          const imgMsg: Message = {
-            id: `img-${Date.now()}`,
-            role: 'assistant',
-            content: `![Image générée](${data.imageUrl})\n\n*Image générée pour : "${imagePrompt.trim()}"*`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, imgMsg]);
-          toast.success('Image générée !');
-        }
-      } else {
-        toast.error('Erreur de génération');
-      }
-    } catch {
-      toast.error('Erreur de génération');
-    } finally {
-      setGeneratingImage(false);
-      setImagePrompt('');
-      setShowImageDialog(false);
-    }
-  };
-
-  // Export conversation
-  const handleExportChat = async () => {
-    if (!activeConversationId || !token) return;
-    try {
-      const res = await fetch(`/api/conversations/export?conversationId=${activeConversationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `conversation-${activeConversationId}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Conversation exportée');
-      }
-    } catch {
-      toast.error('Erreur d\'export');
-    }
-  };
-
-  const handleBackToAgents = () => {
-    setSelectedAgentId(null);
-    setCurrentAgent(null);
+  const newConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
     setStreamingContent('');
-    setShowConversations(false);
   };
 
-  const agentColors = colorConfig[currentAgent?.color || 'emerald'] || colorConfig.emerald;
-  const AgentIcon = iconMap[currentAgent?.icon || 'Bot'] || Bot;
+  const deleteConversation = async (convId: string) => {
+    try {
+      await fetch(`/api/conversations?id=${convId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (activeConversationId === convId) {
+        newConversation();
+      }
+      fetchConversations();
+      toast.success('Conversation supprimée');
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
-  // No agent selected — show agent picker
-  if (!currentAgent) {
+  // Agent selection screen
+  if (!selectedAgentId) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/50">
-            <MessageSquare className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Conversations</h1>
-            <p className="text-muted-foreground mt-1">Sélectionnez un agent pour commencer</p>
-          </div>
+      <div className="p-4 md:p-6 max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold">Choisissez un agent</h1>
+          <p className="text-muted-foreground mt-1">Sélectionnez un agent IA pour commencer une conversation</p>
         </div>
-
-        {loadingAgents ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}><CardContent className="p-6 flex items-center gap-4">
-                <Skeleton className="h-12 w-12 rounded-xl" />
-                <div className="space-y-2 flex-1"><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-24" /></div>
-              </CardContent></Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agents.map((agent) => {
-              const colors = colorConfig[agent.color] || colorConfig.emerald;
-              const IconComp = iconMap[agent.icon] || Bot;
-              return (
-                <motion.div key={agent.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Card
-                    className="cursor-pointer hover:shadow-md transition-shadow border-emerald-100 dark:border-emerald-900/50"
-                    onClick={() => handleSelectAgent(agent)}
-                  >
-                    <CardContent className="p-5 flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl ${colors.iconBg}`}>
-                        <IconComp className={`h-5 w-5 ${colors.iconColor}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold truncate text-sm">{agent.name}</h3>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Badge variant="secondary" className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-0 text-[10px]">
-                            {typeLabels[agent.type] || agent.type}
-                          </Badge>
-                          {agent.type === 'data' && (
-                            <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-400 border-0 text-[10px]">RAG</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </motion.div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {agents.map((agent) => {
+            const IconComp = iconMap[agent.icon] || Bot;
+            const colors = colorMap[agent.color] || colorMap.emerald;
+            return (
+              <motion.button
+                key={agent.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setSelectedAgentId(agent.id);
+                  newConversation();
+                }}
+                className={`text-left p-4 rounded-xl border ${colors.bg} border-border hover:shadow-md transition-all`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center`}>
+                    <IconComp className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{agent.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{agent.description}</p>
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
     );
   }
 
-  // Chat interface
+  const IconComp = iconMap[selectedAgent?.icon || 'Bot'] || Bot;
+  const colors = colorMap[selectedAgent?.color || 'emerald'] || colorMap.emerald;
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex h-[calc(100vh)]">
-      {/* Conversation Sidebar */}
-      <AnimatePresence>
-        {showConversations && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-r border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 overflow-hidden flex flex-col shrink-0"
+    <div className="flex h-screen">
+      {/* Sidebar - Conversations */}
+      <div className="w-64 border-r bg-card/50 hidden md:flex flex-col">
+        <div className="p-3 border-b">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={newConversation}
           >
-            <div className="p-4 border-b border-emerald-100 dark:border-emerald-900/50">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-sm">Historique</h3>
-                <Button variant="ghost" size="sm" onClick={() => setShowConversations(false)}>
-                  Fermer
-                </Button>
-              </div>
-              <Button
-                onClick={handleNewChat}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm"
-                size="sm"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Nouvelle conversation
-              </Button>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {conversations.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">Aucune conversation</p>
-                ) : (
-                  conversations.map((conv) => (
-                    <div
-                      key={conv.id}
-                      className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors group ${
-                        activeConversationId === conv.id
-                          ? 'bg-emerald-50 dark:bg-emerald-950/30'
-                          : 'hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
-                      }`}
-                      onClick={() => handleSelectConversation(conv)}
-                    >
-                      <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{conv.title}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(conv.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                        </p>
-                      </div>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Supprimer cette conversation ?</AlertDialogTitle>
-                            <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteConversation(conv.id)} className="bg-red-600 hover:bg-red-700">
-                              Supprimer
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Chat Area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Chat Header */}
-        <div className="flex items-center gap-2 p-3 md:p-4 border-b border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 shrink-0">
-          <Button variant="ghost" size="icon" className="shrink-0" onClick={handleBackToAgents}>
-            <ArrowLeft className="h-4 w-4" />
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Nouvelle conversation
           </Button>
-          <div className={`p-1.5 rounded-lg ${agentColors.iconBg}`}>
-            <AgentIcon className={`h-4 w-4 ${agentColors.iconColor}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-sm truncate">{currentAgent.name}</h2>
-            <p className="text-[10px] text-muted-foreground">
-              {typeLabels[currentAgent.type] || currentAgent.type}
-              {currentAgent.type === 'data' && ' • RAG activé'}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* Provider Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                  <Cpu className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline max-w-[80px] truncate">
-                    {selectedProvider === 'auto' ? 'Auto' : PROVIDERS[selectedProvider as ProviderId]?.name?.split(' ')[0] || 'Auto'}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => setSelectedProvider('auto')} className="text-xs">
-                  <Sparkles className="h-3.5 w-3.5 mr-2 text-emerald-500" />
-                  Automatique (premier disponible)
-                </DropdownMenuItem>
-                {Object.values(PROVIDERS).map((p) => {
-                  const isConfigured = availableProviders.some((ap: any) => ap.id === p.id && ap.configured);
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => setSelectedProvider(p.id)}
-                      className="text-xs"
-                      disabled={!isConfigured}
-                    >
-                      <span className="mr-2">{p.icon}</span>
-                      {p.name}
-                      {!isConfigured && <span className="ml-auto text-muted-foreground text-[10px]">Non configuré</span>}
-                    </DropdownMenuItem>
-                  );
-                })}
-                <DropdownMenuItem onClick={() => setCurrentView('settings')} className="text-xs text-emerald-600">
-                  <Settings className="h-3.5 w-3.5 mr-2" />
-                  Configurer les clés API...
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {activeConversationId && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs gap-1">
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportChat}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Exporter la conversation
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs gap-1"
-              onClick={() => setShowConversations(!showConversations)}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Historique</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs gap-1"
-              onClick={handleNewChat}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Nouveau</span>
-            </Button>
-            <Badge className={`bg-gradient-to-r ${agentColors.gradient} text-white border-0 text-[10px]`}>
-              <Sparkles className="h-3 w-3 mr-0.5" />
-              IA
-            </Badge>
-          </div>
         </div>
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            {loadingConvos ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : conversations.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Aucune conversation
+              </p>
+            ) : (
+              conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => selectConversation(conv.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 ${
+                    activeConversationId === conv.id
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span className="truncate flex-1">{conv.title}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteConversation(conv.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </button>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+        <div className="p-3 border-t">
+          <button
+            onClick={() => {
+              setSelectedAgentId(null);
+              setActiveConversationId(null);
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Changer d&apos;agent
+          </button>
+        </div>
+      </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-emerald-50/30 to-transparent dark:from-emerald-950/10">
-          <div className="max-w-3xl mx-auto px-3 md:px-6 py-6 space-y-3">
-            {loadingMessages ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-3/4 rounded-2xl" />
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-card/50 backdrop-blur-sm">
+          {/* Mobile conversation drawer */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 p-0">
+              <SheetHeader className="p-3 border-b">
+                <SheetTitle className="text-sm">Conversations</SheetTitle>
+              </SheetHeader>
+              <div className="p-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start mb-2"
+                  onClick={newConversation}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Nouvelle conversation
+                </Button>
+                {conversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => selectConversation(conv.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors group flex items-center gap-2 ${
+                      activeConversationId === conv.id
+                        ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
+                        : 'hover:bg-accent text-muted-foreground'
+                    }`}
+                  >
+                    <span className="truncate flex-1">{conv.title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteConversation(conv.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </button>
                 ))}
               </div>
-            ) : (
-              <>
-                {/* Welcome message */}
-                {messages.length === 0 && !sending && !streamingContent && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center py-10">
-                    <div className={`inline-flex p-3 rounded-2xl ${agentColors.iconBg} mb-3`}>
-                      <AgentIcon className={`h-8 w-8 ${agentColors.iconColor}`} />
-                    </div>
-                    <h3 className="font-semibold">{currentAgent.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">{currentAgent.description}</p>
-                    {currentAgent.type === 'data' && (
-                      <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800">
-                        <FileText className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-                        <span className="text-xs text-violet-700 dark:text-violet-400 font-medium">
-                          RAG activé — vos documents seront analysés
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-4">Envoyez un message pour commencer</p>
-                  </motion.div>
-                )}
+            </SheetContent>
+          </Sheet>
 
-                <AnimatePresence>
-                  {messages.map((msg) => (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {msg.role === 'assistant' && (
-                        <Avatar className="h-7 w-7 shrink-0 ring-1 ring-emerald-200 dark:ring-emerald-800 mt-1">
-                          <AvatarFallback className={`bg-gradient-to-br ${agentColors.gradient} text-white text-[10px]`}>
-                            <AgentIcon className="h-3.5 w-3.5" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
-                          msg.role === 'user'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-md'
-                            : 'bg-white dark:bg-gray-900 border border-emerald-100 dark:border-emerald-900/50 shadow-sm rounded-bl-md'
-                        }`}
-                      >
-                        {msg.role === 'assistant' ? (
-                          <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                        )}
-                        <p className={`text-[9px] mt-1 ${msg.role === 'user' ? 'text-emerald-200' : 'text-muted-foreground'}`}>
-                          {msg.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {/* Streaming response */}
-                {streamingContent && (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 justify-start">
-                    <Avatar className="h-7 w-7 shrink-0 ring-1 ring-emerald-200 dark:ring-emerald-800 mt-1">
-                      <AvatarFallback className={`bg-gradient-to-br ${agentColors.gradient} text-white text-[10px]`}>
-                        <AgentIcon className="h-3.5 w-3.5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="max-w-[85%] bg-white dark:bg-gray-900 border border-emerald-100 dark:border-emerald-900/50 shadow-sm rounded-2xl rounded-bl-md px-3.5 py-2.5 text-sm">
-                      <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                      </div>
-                      <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
-                    </div>
-                  </motion.div>
-                )}
-
-                {sending && !streamingContent && (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 justify-start">
-                    <Avatar className="h-7 w-7 shrink-0 ring-1 ring-emerald-200 dark:ring-emerald-800 mt-1">
-                      <AvatarFallback className={`bg-gradient-to-br ${agentColors.gradient} text-white text-[10px]`}>
-                        <AgentIcon className="h-3.5 w-3.5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="bg-white dark:bg-gray-900 border border-emerald-100 dark:border-emerald-900/50 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                      <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </>
-            )}
+          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center`}>
+            <IconComp className="h-4 w-4 text-white" />
           </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-medium truncate">{selectedAgent?.name}</h2>
+            <p className="text-[11px] text-muted-foreground truncate">{selectedAgent?.description}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden md:flex text-xs text-muted-foreground"
+            onClick={newConversation}
+          >
+            <MessageSquare className="h-3.5 w-3.5 mr-1" />
+            Nouveau
+          </Button>
         </div>
 
-        {/* Image generation dialog */}
-        {showImageDialog && (
-          <div className="border-t border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 p-3">
-            <div className="max-w-3xl mx-auto flex gap-2">
-              <Input
-                placeholder="Décrivez l'image à générer..."
-                value={imagePrompt}
-                onChange={(e) => setImagePrompt(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateImage(); }}
-                disabled={generatingImage}
-                className="flex-1 border-violet-200 dark:border-violet-800"
-              />
-              <Button
-                onClick={handleGenerateImage}
-                disabled={!imagePrompt.trim() || generatingImage}
-                className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
-              >
-                {generatingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-              </Button>
+        {/* Messages */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto"
+        >
+          {loadingMessages ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
             </div>
-          </div>
-        )}
+          ) : messages.length === 0 && !streamingContent ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6">
+              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg mb-4`}>
+                <IconComp className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">{selectedAgent?.name}</h3>
+              <p className="text-sm text-muted-foreground max-w-md mb-6">
+                {selectedAgent?.description}
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {['Bonjour, comment peux-tu m\'aider ?', 'Quelles sont tes capacités ?', 'Aide-moi avec un projet'].map(
+                  (prompt) => (
+                    <Button
+                      key={prompt}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => sendMessage(prompt)}
+                    >
+                      {prompt}
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                      <AvatarFallback className={`text-xs ${colors.bg} ${colors.text}`}>
+                        <IconComp className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                      msg.role === 'user'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white'
+                        : 'bg-muted'
+                    }`}
+                  >
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-background [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
 
-        {/* Input Area */}
-        <div className="border-t border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-gray-950 p-3 shrink-0">
-          <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className={`shrink-0 ${isRecording ? 'bg-red-50 dark:bg-red-950/30 border-red-300' : ''}`}
-              onClick={isRecording ? handleStopRecording : handleStartRecording}
+              {/* Streaming message */}
+              {streamingContent && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-3"
+                >
+                  <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                    <AvatarFallback className={`text-xs ${colors.bg} ${colors.text}`}>
+                      <IconComp className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm bg-muted">
+                    <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-background [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+                      <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                    </div>
+                    <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-1" />
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Scroll to bottom button */}
+        <AnimatePresence>
+          {showScrollBtn && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute bottom-24 left-1/2 -translate-x-1/2"
             >
-              {isRecording ? <MicOff className="h-4 w-4 text-red-500 animate-pulse" /> : <Mic className="h-4 w-4" />}
-            </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full shadow-lg h-8 w-8"
+                onClick={scrollToBottom}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Input bar */}
+        <div className="border-t p-3 bg-card/50 backdrop-blur-sm">
+          <div className="max-w-3xl mx-auto flex items-center gap-2">
             <Button
-              type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className={`shrink-0 ${showImageDialog ? 'bg-violet-50 dark:bg-violet-950/30 border-violet-300' : ''}`}
-              onClick={() => setShowImageDialog(!showImageDialog)}
+              className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+              title="Générer une image"
+              onClick={() => sendMessage('Génère une image de paysage moderne')}
             >
               <ImageIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+              title="Entrée vocale"
+            >
+              <Mic className="h-4 w-4" />
             </Button>
             <Input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Tapez votre message..."
-              disabled={sending}
-              className="flex-1 border-emerald-200 dark:border-emerald-800 focus-visible:ring-emerald-500 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="Écrivez votre message..."
+              className="flex-1"
+              disabled={isStreaming}
             />
-            {sending ? (
+            {isStreaming ? (
               <Button
-                type="button"
-                onClick={handleStopStreaming}
                 variant="destructive"
-                className="shrink-0"
                 size="icon"
+                className="flex-shrink-0"
+                onClick={stopStreaming}
               >
-                <StopCircle className="h-4 w-4" />
+                <Square className="h-4 w-4" />
               </Button>
             ) : (
               <Button
-                type="submit"
-                disabled={!input.trim() || sending}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25 shrink-0"
+                className="flex-shrink-0 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
                 size="icon"
+                onClick={() => sendMessage()}
+                disabled={!input.trim()}
               >
                 <Send className="h-4 w-4" />
               </Button>
             )}
-          </form>
+          </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

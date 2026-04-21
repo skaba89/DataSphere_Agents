@@ -1,352 +1,334 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAppStore } from '@/lib/store';
+import { toast } from 'sonner';
 import {
   DollarSign,
-  TrendingUp,
-  Bot,
   Users,
+  Bot,
+  FileText,
+  TrendingUp,
   ArrowUpRight,
+  ArrowDownRight,
   Loader2,
+  MessageSquare,
+  Globe,
+  Headphones,
+  Target,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useAppStore } from '@/lib/store';
 import {
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
+  Tooltip,
   ResponsiveContainer,
 } from 'recharts';
 
-interface DashboardData {
-  totalRevenue: number;
-  totalTransactions: number;
-  todayRevenue: number;
-  todayTransactions: number;
-  chartData: { month: string; total: number }[];
-  userCount: number;
-  agentCount: number;
-  documentCount: number;
-  recentTransactions: {
-    id: string;
-    amount: number;
-    phone: string;
-    status: string;
-    provider: string;
-    createdAt: string;
-    user?: { name: string; email: string };
-  }[];
-}
-
-function formatGNF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' GNF';
-}
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
+const quickAgents = [
+  { name: 'Support Client', icon: Headphones, color: 'from-emerald-500 to-teal-600', type: 'support' },
+  { name: 'Web Builder', icon: Globe, color: 'from-cyan-500 to-blue-600', type: 'webbuilder' },
+  { name: 'Analyste Data', icon: Target, color: 'from-violet-500 to-purple-600', type: 'data' },
+];
 
 export default function DashboardView() {
-  const { user, token } = useAppStore();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const { token, setCurrentView, setSelectedAgentId, agents, setAgents } = useAppStore();
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      if (!token) return;
+    const fetchData = async () => {
       try {
         const res = await fetch('/api/dashboard', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
+        const result = await res.json();
+        if (res.ok) setData(result);
       } catch {
-        // silent error
+        toast.error('Erreur lors du chargement du dashboard');
       } finally {
         setLoading(false);
       }
     };
-    fetchDashboard();
+
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch('/api/agents', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await res.json();
+        if (result.agents) setAgents(result.agents);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchData();
+    fetchAgents();
   }, [token]);
 
-  const stats = data
-    ? [
-        {
-          title: 'Revenu Total',
-          value: formatGNF(data.totalRevenue),
-          change: '+12.5%',
-          icon: DollarSign,
-          color: 'emerald',
-        },
-        {
-          title: 'Transactions Aujourd\'hui',
-          value: data.todayTransactions.toString(),
-          change: `${formatGNF(data.todayRevenue)}`,
-          icon: TrendingUp,
-          color: 'teal',
-        },
-        {
-          title: 'Agents Actifs',
-          value: data.agentCount.toString(),
-          change: 'IA',
-          icon: Bot,
-          color: 'amber',
-        },
-        {
-          title: 'Utilisateurs',
-          value: data.userCount.toString(),
-          change: `${data.documentCount} docs`,
-          icon: Users,
-          color: 'violet',
-        },
-      ]
-    : [];
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
-  const colorMap: Record<string, { bg: string; iconBg: string; iconColor: string }> = {
-    emerald: {
-      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-      iconBg: 'bg-emerald-100 dark:bg-emerald-900/50',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
+  const stats = [
+    {
+      title: 'Revenu Total',
+      value: `${(data.totalRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      change: '+12.5%',
+      up: true,
+      icon: DollarSign,
+      gradient: 'from-emerald-500 to-teal-600',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/50',
     },
-    teal: {
-      bg: 'bg-teal-50 dark:bg-teal-950/30',
-      iconBg: 'bg-teal-100 dark:bg-teal-900/50',
-      iconColor: 'text-teal-600 dark:text-teal-400',
+    {
+      title: "Aujourd'hui",
+      value: `${(data.todayRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      change: `${data.todayTransactions || 0} transactions`,
+      up: true,
+      icon: TrendingUp,
+      gradient: 'from-amber-500 to-orange-600',
+      bg: 'bg-amber-50 dark:bg-amber-950/50',
     },
-    amber: {
-      bg: 'bg-amber-50 dark:bg-amber-950/30',
-      iconBg: 'bg-amber-100 dark:bg-amber-900/50',
-      iconColor: 'text-amber-600 dark:text-amber-400',
+    {
+      title: 'Utilisateurs',
+      value: data.userCount || 0,
+      change: 'Actifs',
+      up: true,
+      icon: Users,
+      gradient: 'from-violet-500 to-purple-600',
+      bg: 'bg-violet-50 dark:bg-violet-950/50',
     },
-    violet: {
-      bg: 'bg-violet-50 dark:bg-violet-950/30',
-      iconBg: 'bg-violet-100 dark:bg-violet-900/50',
-      iconColor: 'text-violet-600 dark:text-violet-400',
+    {
+      title: 'Documents',
+      value: data.documentCount || 0,
+      change: `${data.agentCount || 0} agents`,
+      up: true,
+      icon: FileText,
+      gradient: 'from-rose-500 to-pink-600',
+      bg: 'bg-rose-50 dark:bg-rose-950/50',
     },
-  };
+  ];
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="p-4 md:p-6 lg:p-8 space-y-6"
-    >
-      {/* Welcome Message */}
-      <motion.div variants={itemVariants}>
-        <h1 className="text-2xl md:text-3xl font-bold">
-          Bonjour, {user?.name?.split(' ')[0] || 'Utilisateur'} 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Voici un aperçu de votre plateforme DataSphere aujourd&apos;hui.
-        </p>
-      </motion.div>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Tableau de bord</h1>
+        <p className="text-muted-foreground mt-1">Vue d&apos;ensemble de votre activité DataSphere</p>
+      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-8 w-32" />
-                      <Skeleton className="h-3 w-20" />
+      {/* Stats grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
+                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        {stat.up ? (
+                          <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <ArrowDownRight className="h-3 w-3 text-red-500" />
+                        )}
+                        <span className={`text-xs ${stat.up ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {stat.change}
+                        </span>
+                      </div>
                     </div>
-                    <Skeleton className="h-12 w-12 rounded-xl" />
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            ))
-          : stats.map((stat) => {
-              const colors = colorMap[stat.color];
-              const Icon = stat.icon;
-              return (
-                <motion.div key={stat.title} variants={itemVariants}>
-                  <Card className={`border-0 ${colors.bg} hover:shadow-md transition-shadow`}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                          <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                          <div className="flex items-center gap-1 mt-2">
-                            <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                              {stat.change}
-                            </span>
-                          </div>
-                        </div>
-                        <div className={`p-3 rounded-xl ${colors.iconBg}`}>
-                          <Icon className={`h-6 w-6 ${colors.iconColor}`} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
+            </motion.div>
+          );
+        })}
       </div>
 
-      {/* Chart */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenus Mensuels</CardTitle>
-            <CardDescription>Évolution des revenus sur les 6 derniers mois</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-72 w-full" />
-            ) : data && data.chartData.length > 0 ? (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.chartData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-emerald-100 dark:stroke-emerald-900/30" />
-                    <XAxis
-                      dataKey="month"
-                      tickFormatter={(val) => {
-                        const d = new Date(val + '-01');
-                        return d.toLocaleDateString('fr-FR', { month: 'short' });
-                      }}
-                      className="text-xs"
-                    />
-                    <YAxis
-                      tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
-                      className="text-xs"
-                    />
-                    <RechartsTooltip
-                      formatter={(value: number) => [formatGNF(value), 'Revenu']}
-                      labelFormatter={(label) => {
-                        const d = new Date(label + '-01');
-                        return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                      }}
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--popover))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.875rem',
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="total"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorRevenue)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-72 flex items-center justify-center text-muted-foreground">
-                Aucune donnée de revenu disponible
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Revenue chart */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="lg:col-span-2"
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Revenus mensuels</CardTitle>
+              <CardDescription>Évolution des revenus sur les 6 derniers mois</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.chartData && data.chartData.length > 0 ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={data.chartData}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis
+                        dataKey="month"
+                        className="text-xs"
+                        tick={{ fontSize: 11 }}
+                      />
+                      <YAxis className="text-xs" tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorRevenue)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Aucune donnée de revenus disponible
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      {/* Recent Transactions */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Transactions Récentes</CardTitle>
-            <CardDescription>Les dernières transactions sur la plateforme</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
+        {/* Quick agent access */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Accès rapide</CardTitle>
+              <CardDescription>Vos agents les plus utilisés</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {agents.slice(0, 5).map((agent) => {
+                const agentIconMap: Record<string, React.ElementType> = {
+                  Headphones, TrendingUp: TrendingUp, Database, Target, Globe, Bot,
+                };
+                const colorMapLocal: Record<string, string> = {
+                  emerald: 'from-emerald-500 to-teal-600',
+                  amber: 'from-amber-500 to-orange-600',
+                  violet: 'from-violet-500 to-purple-600',
+                  rose: 'from-rose-500 to-pink-600',
+                  cyan: 'from-cyan-500 to-blue-600',
+                  orange: 'from-orange-500 to-red-600',
+                };
+                const IconComp = agentIconMap[agent.icon] || Bot;
+                const gradient = colorMapLocal[agent.color] || colorMapLocal.emerald;
+
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => {
+                      setSelectedAgentId(agent.id);
+                      setCurrentView(agent.type === 'webbuilder' ? 'webbuilder' : 'chat');
+                    }}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors text-left"
+                  >
+                    <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
+                      <IconComp className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{agent.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{agent.type}</p>
+                    </div>
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Recent transactions */}
+      {data.recentTransactions && data.recentTransactions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-6"
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Transactions récentes</CardTitle>
+              <CardDescription>Les dernières opérations Mobile Money</CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                {data.recentTransactions.map((tx: any) => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between py-2 border-b last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+                        <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{tx.user?.name || 'Utilisateur'}</p>
+                        <p className="text-xs text-muted-foreground">{tx.phone}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">
+                        {tx.amount.toLocaleString('fr-FR')} GNF
+                      </p>
+                      <Badge
+                        variant={tx.status === 'success' ? 'default' : 'secondary'}
+                        className={`text-[10px] ${
+                          tx.status === 'success'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400'
+                            : ''
+                        }`}
+                      >
+                        {tx.status === 'success' ? 'Succès' : 'En attente'}
+                      </Badge>
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : data && data.recentTransactions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Téléphone</TableHead>
-                      <TableHead>Montant</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.recentTransactions.map((tx) => (
-                      <TableRow key={tx.id}>
-                        <TableCell className="font-medium">
-                          {tx.user?.name || 'N/A'}
-                        </TableCell>
-                        <TableCell>{tx.phone}</TableCell>
-                        <TableCell className="font-semibold">{formatGNF(tx.amount)}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={tx.status === 'success' ? 'default' : 'secondary'}
-                            className={
-                              tx.status === 'success'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400'
-                            }
-                          >
-                            {tx.status === 'success' ? 'Réussi' : 'En attente'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(tx.createdAt).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Aucune transaction récente
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+    </div>
   );
 }

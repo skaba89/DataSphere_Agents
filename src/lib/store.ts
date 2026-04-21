@@ -8,6 +8,33 @@ interface User {
   avatar?: string | null;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  systemPrompt: string;
+  icon: string;
+  color: string;
+  isDefault: boolean;
+  creatorId?: string | null;
+}
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  agentId: string;
+  updatedAt: string;
+  messages?: Message[];
+}
+
 interface ProviderInfo {
   id: string;
   name: string;
@@ -28,6 +55,10 @@ interface AppState {
   hydrated: boolean;
   selectedProvider: string;
   availableProviders: ProviderInfo[];
+  agents: Agent[];
+  conversations: Conversation[];
+  messages: Message[];
+  isStreaming: boolean;
 
   setAuth: (user: User, token: string) => void;
   logout: () => void;
@@ -38,6 +69,11 @@ interface AppState {
   setHydrated: (hydrated: boolean) => void;
   setSelectedProvider: (provider: string) => void;
   setAvailableProviders: (providers: ProviderInfo[]) => void;
+  setAgents: (agents: Agent[]) => void;
+  setConversations: (conversations: Conversation[]) => void;
+  setMessages: (messages: Message[]) => void;
+  addMessage: (message: Message) => void;
+  setIsStreaming: (streaming: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -50,6 +86,10 @@ export const useAppStore = create<AppState>((set) => ({
   hydrated: false,
   selectedProvider: "auto",
   availableProviders: [],
+  agents: [],
+  conversations: [],
+  messages: [],
+  isStreaming: false,
 
   setAuth: (user, token) => {
     if (typeof window !== "undefined") {
@@ -71,13 +111,17 @@ export const useAppStore = create<AppState>((set) => ({
       selectedAgentId: null,
       activeConversationId: null,
       selectedProvider: "auto",
+      agents: [],
+      conversations: [],
+      messages: [],
+      isStreaming: false,
     });
   },
 
-  setCurrentView: (currentView) =>
-    set({ currentView }),
+  setCurrentView: (currentView) => set({ currentView }),
   setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
-  setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
+  setActiveConversationId: (activeConversationId) =>
+    set({ activeConversationId }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setHydrated: (hydrated) => set({ hydrated }),
   setSelectedProvider: (selectedProvider) => {
@@ -87,4 +131,10 @@ export const useAppStore = create<AppState>((set) => ({
     set({ selectedProvider });
   },
   setAvailableProviders: (availableProviders) => set({ availableProviders }),
+  setAgents: (agents) => set({ agents }),
+  setConversations: (conversations) => set({ conversations }),
+  setMessages: (messages) => set({ messages }),
+  addMessage: (message) =>
+    set((state) => ({ messages: [...state.messages, message] })),
+  setIsStreaming: (isStreaming) => set({ isStreaming }),
 }));
