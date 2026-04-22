@@ -16,7 +16,7 @@ import MarketplaceView from '@/components/datasphere/MarketplaceView';
 import MobileNav from '@/components/datasphere/MobileNav';
 
 function AppContent() {
-  const { user, currentView, setSidebarOpen, token, setAgents } = useAppStore();
+  const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
 
   // Auto-close sidebar on mobile
   useEffect(() => {
@@ -40,6 +40,10 @@ function AppContent() {
         const res = await fetch('/api/agents', {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 401) {
+          logout();
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.agents) setAgents(data.agents);
@@ -49,7 +53,7 @@ function AppContent() {
       }
     };
     fetchAgents();
-  }, [token, setAgents]);
+  }, [token, setAgents, logout]);
 
   if (!user) {
     return <LoginView />;

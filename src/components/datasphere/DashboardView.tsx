@@ -101,7 +101,7 @@ function SkeletonCard() {
 }
 
 export default function DashboardView() {
-  const { token, setCurrentView, setSelectedAgentId, agents, setAgents, user, conversations } = useAppStore();
+  const { token, setCurrentView, setSelectedAgentId, agents, setAgents, user, conversations, logout } = useAppStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +111,10 @@ export default function DashboardView() {
         const res = await fetch('/api/dashboard', {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 401) {
+          logout();
+          return;
+        }
         const result = await res.json();
         if (res.ok) setData(result);
       } catch {
@@ -125,6 +129,10 @@ export default function DashboardView() {
         const res = await fetch('/api/agents', {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 401) {
+          logout();
+          return;
+        }
         const result = await res.json();
         if (result.agents) setAgents(result.agents);
       } catch {

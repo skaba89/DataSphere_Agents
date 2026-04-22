@@ -113,6 +113,7 @@ const typeLabels: Record<string, string> = {
   data: 'Data / RAG',
   sales: 'Commercial',
   webbuilder: 'Web Builder',
+  image: 'Image IA',
   custom: 'Personnalisé',
 };
 
@@ -126,7 +127,7 @@ const categoryTabs: { id: CategoryTab; label: string }[] = [
 ];
 
 export default function AgentsView() {
-  const { token, agents, setAgents, setCurrentView, setSelectedAgentId } = useAppStore();
+  const { token, agents, setAgents, setCurrentView, setSelectedAgentId, logout } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -149,6 +150,10 @@ export default function AgentsView() {
       const res = await fetch('/api/agents', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401) {
+        logout();
+        return;
+      }
       const data = await res.json();
       if (data.agents) setAgents(data.agents);
     } catch {
