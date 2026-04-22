@@ -638,10 +638,10 @@ export default function ChatView() {
             </p>
           ) : (
             conversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
                 onClick={() => selectConversation(conv.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 ${
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 cursor-pointer ${
                   activeConversationId === conv.id
                     ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
                     : 'hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -657,7 +657,7 @@ export default function ChatView() {
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
-              </button>
+              </div>
             ))
           )}
         </div>
