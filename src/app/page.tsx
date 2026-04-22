@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { registerLogoutCallback } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import LoginView from '@/components/datasphere/LoginView';
 import Sidebar from '@/components/datasphere/Sidebar';
@@ -18,6 +19,11 @@ import MobileNav from '@/components/datasphere/MobileNav';
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
 
+  // Register the global logout callback for apiFetch
+  useEffect(() => {
+    registerLogoutCallback(logout);
+  }, [logout]);
+
   // Auto-close sidebar on mobile
   useEffect(() => {
     const handleResize = () => {
@@ -32,7 +38,7 @@ function AppContent() {
     return () => window.removeEventListener('resize', handleResize);
   }, [setSidebarOpen]);
 
-  // Load agents on auth
+  // Load agents when token changes
   useEffect(() => {
     if (!token) return;
     const fetchAgents = async () => {
@@ -105,27 +111,60 @@ function AppContent() {
 }
 
 export default function Home() {
-  const { setAuth, hydrated, setHydrated, setSelectedProvider } = useAppStore();
+  const { setAuth, hydrated, setHydrated, setSelectedProvider, logout } = useAppStore();
 
   useEffect(() => {
-    // Restore auth from localStorage after mount
-    const token = localStorage.getItem('ds_token');
-    const userStr = localStorage.getItem('ds_user');
-    const savedProvider = localStorage.getItem('ds_provider');
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setAuth(user, token);
-      } catch {
-        localStorage.removeItem('ds_token');
-        localStorage.removeItem('ds_user');
+    const init = async () => {
+      const token = localStorage.getItem('ds_token');
+      const userStr = localStorage.getItem('ds_user');
+      const savedProvider = localStorage.getItem('ds_provider');
+
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+
+          // Validate the token BEFORE restoring auth
+          try {
+            const res = await fetch('/api/agents', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.status === 401) {
+              // Token is invalid — clear storage and skip auth restore
+              localStorage.removeItem('ds_token');
+              localStorage.removeItem('ds_user');
+              localStorage.removeItem('ds_provider');
+            } else {
+              // Token is valid — restore auth
+              setAuth(user, token);
+
+              // Also load agents from the validated response
+              if (res.ok) {
+                const data = await res.json();
+                if (data.agents) {
+                  const { setAgents } = useAppStore.getState();
+                  setAgents(data.agents);
+                }
+              }
+            }
+          } catch {
+            // Network error — still restore auth (might be temporary)
+            setAuth(user, token);
+          }
+        } catch {
+          localStorage.removeItem('ds_token');
+          localStorage.removeItem('ds_user');
+        }
       }
-    }
-    if (savedProvider) {
-      setSelectedProvider(savedProvider);
-    }
-    setHydrated(true);
-  }, [setAuth, setHydrated, setSelectedProvider]);
+
+      if (savedProvider) {
+        setSelectedProvider(savedProvider);
+      }
+      setHydrated(true);
+    };
+
+    init();
+  }, [setAuth, setHydrated, setSelectedProvider, logout]);
 
   if (!hydrated) {
     return (

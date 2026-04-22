@@ -159,6 +159,7 @@ export default function ChatView() {
     setCurrentView,
     isStreaming,
     setIsStreaming,
+    logout,
   } = useAppStore();
 
   const [messages, setMessages] = useState<StreamMessage[]>([]);
@@ -202,6 +203,7 @@ export default function ChatView() {
       const res = await fetch(`/api/conversations?agentId=${selectedAgentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401) { logout(); return; }
       const data = await res.json();
       if (data.conversations) setConversations(data.conversations);
     } catch {
@@ -209,7 +211,7 @@ export default function ChatView() {
     } finally {
       setLoadingConvos(false);
     }
-  }, [token, selectedAgentId]);
+  }, [token, selectedAgentId, logout]);
 
   // Fetch messages for a conversation
   const fetchMessages = useCallback(async (convId: string) => {
@@ -219,6 +221,7 @@ export default function ChatView() {
       const res = await fetch(`/api/conversations/messages?conversationId=${convId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401) { logout(); return; }
       const data = await res.json();
       if (data.messages) {
         setMessages(
@@ -235,7 +238,7 @@ export default function ChatView() {
     } finally {
       setLoadingMessages(false);
     }
-  }, [token]);
+  }, [token, logout]);
 
   useEffect(() => {
     fetchConversations();
