@@ -343,7 +343,7 @@ export async function POST(req: NextRequest) {
 
     // Adjust parameters based on agent type
     const agentTemperature = agent.type === "data" || agent.type === "finance" ? 0.3 : 0.7;
-    const agentMaxTokens = agent.type === "webbuilder" ? 4096 : agent.type === "image" ? 1024 : 2048;
+    const agentMaxTokens = agent.type === "webbuilder" ? 16384 : agent.type === "finance" ? 4096 : agent.type === "image" ? 1024 : 2048;
 
     const encoder = new TextEncoder();
 

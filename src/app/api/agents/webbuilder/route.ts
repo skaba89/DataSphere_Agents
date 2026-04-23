@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { resolveProvider, streamChatCompletion, chatCompletion, PROVIDERS } from "@/lib/ai-providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,41 @@ RÈGLES CRITIQUES POUR LA GÉNÉRATION DE CODE:
 9. N'ajoute JAMAIS de commentaires explicatifs en dehors du code HTML
 10. Si l'utilisateur demande des modifications, régénère le fichier complet avec les changements`;
 
+function extractHtmlFromResponse(text: string): string {
+  // Try markdown code block first
+  const codeBlockMatch = text.match(/```html\s*([\s\S]*?)```/);
+  if (codeBlockMatch) return codeBlockMatch[1].trim();
+
+  // Try to find <html>...</html>
+  if (text.includes('<html') && text.includes('</html>')) {
+    const start = text.indexOf('<html');
+    const end = text.lastIndexOf('</html>') + 7;
+    return text.slice(start, end);
+  }
+
+  // Try to find <!DOCTYPE html>...</html>
+  if (text.includes('<!DOCTYPE') && text.includes('</html>')) {
+    const start = text.indexOf('<!DOCTYPE');
+    const end = text.lastIndexOf('</html>') + 7;
+    return text.slice(start, end);
+  }
+
+  // Try to find <head>...</body>
+  if (text.includes('<head') && text.includes('</body>')) {
+    const start = text.indexOf('<head');
+    const end = text.lastIndexOf('</body>') + 7;
+    // Try to include anything before <head> like <!DOCTYPE>
+    const beforeHead = text.slice(0, start);
+    const doctypeMatch = beforeHead.match(/<!DOCTYPE[^>]*>/i);
+    if (doctypeMatch) {
+      return doctypeMatch[0] + '\n' + text.slice(start, end);
+    }
+    return text.slice(start, end);
+  }
+
+  return '';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -145,7 +181,7 @@ export async function POST(req: NextRequest) {
     const previousMessages = await db.chatMessage.findMany({
       where: { conversationId: convId },
       orderBy: { createdAt: "asc" },
-      take: 30, // More context for better iterations
+      take: 30,
     });
 
     const chatHistory = previousMessages.map((m) => ({
@@ -167,133 +203,203 @@ export async function POST(req: NextRequest) {
             )
           );
 
-          const { getZAI } = await import("@/lib/zai");
-          const zai = await getZAI();
+          // Try multi-provider AI first (Groq, OpenRouter, etc.)
+          const providerInfo = await resolveProvider(payload.userId);
 
-          let streamingWorked = false;
+          if (providerInfo) {
+            const { provider, apiKey, model } = providerInfo;
+            const providerName = PROVIDERS[provider]?.name || provider;
 
-          // Try streaming first
-          try {
-            const completion = await zai.chat.completions.create({
-              messages: [
-                { role: "system", content: fullSystemPrompt },
-                ...chatHistory,
-              ],
-              stream: true,
-            });
-
-            if (completion && typeof completion === "object" && typeof completion.getReader === "function") {
-              const reader = (completion as ReadableStream<Uint8Array>).getReader();
-              const decoder = new TextDecoder();
-              let sseBuffer = "";
-
-              try {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-
-                  const chunk = decoder.decode(value, { stream: true });
-                  sseBuffer += chunk;
-
-                  const lines = sseBuffer.split("\n");
-                  sseBuffer = lines.pop() || "";
-
-                  for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith("data: ")) continue;
-
-                    const dataStr = trimmed.slice(6).trim();
-                    if (dataStr === "[DONE]") continue;
-
-                    try {
-                      const parsed = JSON.parse(dataStr);
-                      const content =
-                        parsed.choices?.[0]?.delta?.content ||
-                        parsed.choices?.[0]?.message?.content ||
-                        "";
-
-                      if (content) {
-                        fullResponse += content;
-                        controller.enqueue(
-                          encoder.encode(
-                            `data: ${JSON.stringify({ type: "token", content })}\n\n`
-                          )
-                        );
-                        streamingWorked = true;
-                      }
-                    } catch {
-                      // JSON parse failed, skip
-                    }
-                  }
-                }
-
-                // Process remaining buffer
-                if (sseBuffer.trim()) {
-                  const trimmed = sseBuffer.trim();
-                  if (trimmed.startsWith("data: ")) {
-                    const dataStr = trimmed.slice(6).trim();
-                    if (dataStr !== "[DONE]") {
-                      try {
-                        const parsed = JSON.parse(dataStr);
-                        const content =
-                          parsed.choices?.[0]?.delta?.content ||
-                          parsed.choices?.[0]?.message?.content ||
-                          "";
-                        if (content) {
-                          fullResponse += content;
-                          controller.enqueue(
-                            encoder.encode(
-                              `data: ${JSON.stringify({ type: "token", content })}\n\n`
-                            )
-                          );
-                          streamingWorked = true;
-                        }
-                      } catch { /* ignore */ }
-                    }
-                  }
-                }
-              } finally {
-                reader.releaseLock();
-              }
-            }
-          } catch (streamErr) {
-            console.error("Web builder streaming failed, falling back:", streamErr);
-          }
-
-          // Non-streaming fallback
-          if (!streamingWorked && !fullResponse) {
             try {
-              const result = await zai.chat.completions.create({
+              // Try streaming first
+              const streamGen = streamChatCompletion({
+                provider,
+                apiKey,
+                model,
                 messages: [
                   { role: "system", content: fullSystemPrompt },
                   ...chatHistory,
                 ],
+                stream: true,
+                temperature: 0.7,
+                maxTokens: 16384,
               });
 
-              const responseText =
-                result.choices?.[0]?.message?.content ||
-                result.text ||
-                result.content ||
-                "";
-
-              const finalText = !responseText && typeof result === "string" ? result : responseText;
-
-              if (finalText) {
-                fullResponse = finalText;
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: "token", content: finalText })}\n\n`
-                  )
-                );
+              for await (const chunk of streamGen) {
+                if (chunk.done) break;
+                if (chunk.content) {
+                  fullResponse += chunk.content;
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: "token", content: chunk.content })}\n\n`
+                    )
+                  );
+                }
               }
-            } catch (nonStreamErr) {
-              console.error("Web builder non-streaming also failed:", nonStreamErr);
+            } catch (streamErr: any) {
+              console.error(`${providerName} streaming failed:`, streamErr?.message);
+              // Try non-streaming fallback for this provider
+              try {
+                const result = await chatCompletion({
+                  provider,
+                  apiKey,
+                  model,
+                  messages: [
+                    { role: "system", content: fullSystemPrompt },
+                    ...chatHistory,
+                  ],
+                  temperature: 0.7,
+                  maxTokens: 16384,
+                });
+                if (result.content) {
+                  fullResponse = result.content;
+                  const words = result.content.split(/(?<=\s)/);
+                  for (const word of words) {
+                    controller.enqueue(
+                      encoder.encode(
+                        `data: ${JSON.stringify({ type: "token", content: word })}\n\n`
+                      )
+                    );
+                    await new Promise((r) => setTimeout(r, 15));
+                  }
+                }
+              } catch (nonStreamErr: any) {
+                console.error(`${providerName} non-streaming also failed:`, nonStreamErr?.message);
+              }
+            }
+          }
+
+          // Fallback to z-ai-web-dev-sdk if no provider configured or all providers failed
+          if (!fullResponse) {
+            try {
+              const { getZAI } = await import("@/lib/zai");
+              const zai = await getZAI();
+              let streamingWorked = false;
+
+              try {
+                const completion = await zai.chat.completions.create({
+                  messages: [
+                    { role: "system", content: fullSystemPrompt },
+                    ...chatHistory,
+                  ],
+                  stream: true,
+                });
+
+                if (completion && typeof completion === "object" && typeof completion.getReader === "function") {
+                  const reader = (completion as ReadableStream<Uint8Array>).getReader();
+                  const decoder = new TextDecoder();
+                  let sseBuffer = "";
+
+                  try {
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+
+                      const chunk = decoder.decode(value, { stream: true });
+                      sseBuffer += chunk;
+
+                      const lines = sseBuffer.split("\n");
+                      sseBuffer = lines.pop() || "";
+
+                      for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+                        const dataStr = trimmed.slice(6).trim();
+                        if (dataStr === "[DONE]") continue;
+
+                        try {
+                          const parsed = JSON.parse(dataStr);
+                          const content =
+                            parsed.choices?.[0]?.delta?.content ||
+                            parsed.choices?.[0]?.message?.content ||
+                            "";
+
+                          if (content) {
+                            fullResponse += content;
+                            controller.enqueue(
+                              encoder.encode(
+                                `data: ${JSON.stringify({ type: "token", content })}\n\n`
+                              )
+                            );
+                            streamingWorked = true;
+                          }
+                        } catch {
+                          // JSON parse failed, skip
+                        }
+                      }
+                    }
+
+                    // Process remaining buffer
+                    if (sseBuffer.trim()) {
+                      const trimmed = sseBuffer.trim();
+                      if (trimmed.startsWith("data: ")) {
+                        const dataStr = trimmed.slice(6).trim();
+                        if (dataStr !== "[DONE]") {
+                          try {
+                            const parsed = JSON.parse(dataStr);
+                            const content =
+                              parsed.choices?.[0]?.delta?.content ||
+                              parsed.choices?.[0]?.message?.content ||
+                              "";
+                            if (content) {
+                              fullResponse += content;
+                              controller.enqueue(
+                                encoder.encode(
+                                  `data: ${JSON.stringify({ type: "token", content })}\n\n`
+                                )
+                              );
+                              streamingWorked = true;
+                            }
+                          } catch { /* ignore */ }
+                        }
+                      }
+                    }
+                  } finally {
+                    reader.releaseLock();
+                  }
+                }
+              } catch (streamErr) {
+                console.error("Z-AI streaming failed:", streamErr);
+              }
+
+              // Non-streaming fallback
+              if (!streamingWorked && !fullResponse) {
+                try {
+                  const result = await zai.chat.completions.create({
+                    messages: [
+                      { role: "system", content: fullSystemPrompt },
+                      ...chatHistory,
+                    ],
+                  });
+
+                  const responseText =
+                    result.choices?.[0]?.message?.content ||
+                    result.text ||
+                    result.content ||
+                    "";
+
+                  const finalText = !responseText && typeof result === "string" ? result : responseText;
+
+                  if (finalText) {
+                    fullResponse = finalText;
+                    controller.enqueue(
+                      encoder.encode(
+                        `data: ${JSON.stringify({ type: "token", content: finalText })}\n\n`
+                      )
+                    );
+                  }
+                } catch (nonStreamErr) {
+                  console.error("Z-AI non-streaming also failed:", nonStreamErr);
+                }
+              }
+            } catch (zaiErr) {
+              console.error("Z-AI SDK fallback failed:", zaiErr);
             }
           }
 
           // Extract HTML code from the response
-          const htmlMatch = fullResponse.match(/```html\s*([\s\S]*?)```/);
-          const htmlCode = htmlMatch ? htmlMatch[1].trim() : "";
+          const htmlCode = extractHtmlFromResponse(fullResponse);
 
           // Fallback message
           if (!fullResponse) {
