@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -21,14 +20,10 @@ import {
   ArrowLeft,
   Bot,
   MessageSquare,
-  ChevronLeft,
-  ChevronRight,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const quickPrompts = [
   { label: '🏠 Landing Page', prompt: 'Crée une landing page moderne pour une startup SaaS avec hero section, features, pricing et footer' },
@@ -38,9 +33,25 @@ const quickPrompts = [
 ];
 
 function extractHtml(text: string): string | null {
-  const match = text.match(/```html\s*\n([\s\S]*?)```/);
-  if (match) return match[1].trim();
+  // Try markdown code block first - handle various formats
+  const patterns = [
+    /```html\s*\n([\s\S]*?)```/,     // Standard ```html\n...\n```
+    /```html\s*([\s\S]*?)```/,        // ```html...\n```  (no newline after html)
+    /```\s*\n([\s\S]*?)```/,          // ```\n...\n``` (no language tag but HTML content)
+  ];
 
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const code = match[1].trim();
+      // Verify it's actually HTML
+      if (code.includes('<html') || code.includes('<!DOCTYPE') || code.includes('<head') || code.includes('<body')) {
+        return code;
+      }
+    }
+  }
+
+  // Try to find full HTML document
   if (text.includes('<html') && text.includes('</html>')) {
     const start = text.indexOf('<html');
     const end = text.lastIndexOf('</html>') + 7;
@@ -50,6 +61,18 @@ function extractHtml(text: string): string | null {
   if (text.includes('<!DOCTYPE') && text.includes('</html>')) {
     const start = text.indexOf('<!DOCTYPE');
     const end = text.lastIndexOf('</html>') + 7;
+    return text.slice(start, end);
+  }
+
+  // Try <head>...</html>
+  if (text.includes('<head') && text.includes('</html>')) {
+    const start = text.indexOf('<head');
+    const end = text.lastIndexOf('</html>') + 7;
+    const beforeHead = text.slice(0, start);
+    const doctypeMatch = beforeHead.match(/<!DOCTYPE[^>]*>/i);
+    if (doctypeMatch) {
+      return doctypeMatch[0] + '\n' + text.slice(start, end);
+    }
     return text.slice(start, end);
   }
 
@@ -76,6 +99,7 @@ export default function WebBuilderView() {
   const [activeTab, setActiveTab] = useState('preview');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [mobileView, setMobileView] = useState<'chat' | 'preview'>('chat');
+  const [copied, setCopied] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -83,13 +107,21 @@ export default function WebBuilderView() {
   const webbuilderAgent = agents.find((a) => a.type === 'webbuilder');
   const agentId = webbuilderAgent?.id || selectedAgentId;
 
+  // Extract HTML from streaming content in real-time
   useEffect(() => {
     if (streamingContent) {
       const html = extractHtml(streamingContent);
-      if (html) setExtractedHtml(html);
+      if (html) {
+        setExtractedHtml(html);
+        // Auto-switch to preview tab when HTML is found
+        if (activeTab !== 'preview') {
+          setActiveTab('preview');
+        }
+      }
     }
-  }, [streamingContent]);
+  }, [streamingContent, activeTab]);
 
+  // Extract HTML from completed messages
   useEffect(() => {
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     if (lastAssistant && !isStreaming) {
@@ -98,6 +130,14 @@ export default function WebBuilderView() {
     }
   }, [messages, isStreaming]);
 
+  // Force iframe reload when extractedHtml changes
+  useEffect(() => {
+    if (iframeRef.current && extractedHtml) {
+      // Use srcDoc to update iframe content
+      iframeRef.current.srcdoc = extractedHtml;
+    }
+  }, [extractedHtml]);
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text || !agentId || !token || isStreaming) return;
@@ -105,6 +145,7 @@ export default function WebBuilderView() {
     setInput('');
     setIsStreaming(true);
     setStreamingContent('');
+    setExtractedHtml(null);
 
     const userMsg = {
       id: `user-${Date.now()}`,
@@ -118,7 +159,8 @@ export default function WebBuilderView() {
     abortRef.current = controller;
 
     try {
-      const res = await fetch('/api/agents/chat-stream', {
+      // Use the dedicated webbuilder route which sends htmlCode in done event
+      const res = await fetch('/api/agents/webbuilder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,7 +174,9 @@ export default function WebBuilderView() {
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No reader');
@@ -140,6 +184,7 @@ export default function WebBuilderView() {
       const decoder = new TextDecoder();
       let buffer = '';
       let fullContent = '';
+      let serverHtmlCode = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -160,13 +205,43 @@ export default function WebBuilderView() {
               fullContent += parsed.content;
               setStreamingContent(fullContent);
             } else if (parsed.type === 'done') {
+              // The webbuilder route sends htmlCode extracted server-side
+              if (parsed.htmlCode) {
+                serverHtmlCode = parsed.htmlCode;
+              }
               fullContent = parsed.fullResponse || fullContent;
               if (parsed.conversationId && !activeConversationId) {
                 setActiveConversationId(parsed.conversationId);
               }
+            } else if (parsed.type === 'error') {
+              toast.error(parsed.content || 'Erreur lors de la génération');
             }
           } catch { /* skip */ }
         }
+      }
+
+      // Process remaining buffer
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const parsed = JSON.parse(trimmed.slice(6).trim());
+            if (parsed.type === 'done' && parsed.htmlCode) {
+              serverHtmlCode = parsed.htmlCode;
+            }
+            if (parsed.fullResponse) {
+              fullContent = parsed.fullResponse;
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      // Use server-side extracted HTML if available, otherwise try client-side extraction
+      if (serverHtmlCode) {
+        setExtractedHtml(serverHtmlCode);
+      } else {
+        const clientHtml = extractHtml(fullContent);
+        if (clientHtml) setExtractedHtml(clientHtml);
       }
 
       const assistantMsg = {
@@ -177,12 +252,14 @@ export default function WebBuilderView() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setStreamingContent('');
-      // Switch to preview on mobile after response
+      // Switch to preview tab after response
+      setActiveTab('preview');
       setMobileView('preview');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
+        // Try fallback with chat-stream route
         try {
-          const fallbackRes = await fetch('/api/agents/chat', {
+          const fallbackRes = await fetch('/api/agents/chat-stream', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -194,21 +271,57 @@ export default function WebBuilderView() {
               conversationId: activeConversationId || undefined,
             }),
           });
-          const fallbackData = await fallbackRes.json();
-          if (fallbackData.response) {
-            if (fallbackData.conversationId && !activeConversationId) {
-              setActiveConversationId(fallbackData.conversationId);
+
+          if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
+
+          const reader = fallbackRes.body?.getReader();
+          if (!reader) throw new Error('No reader');
+
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let fullContent = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith('data: ')) continue;
+              try {
+                const parsed = JSON.parse(trimmed.slice(6));
+                if (parsed.type === 'meta' && parsed.conversationId) {
+                  if (!activeConversationId) setActiveConversationId(parsed.conversationId);
+                } else if (parsed.type === 'token') {
+                  fullContent += parsed.content;
+                  setStreamingContent(fullContent);
+                } else if (parsed.type === 'done') {
+                  fullContent = parsed.fullResponse || fullContent;
+                  if (parsed.conversationId && !activeConversationId) {
+                    setActiveConversationId(parsed.conversationId);
+                  }
+                }
+              } catch { /* skip */ }
             }
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `assistant-${Date.now()}`,
-                role: 'assistant',
-                content: fallbackData.response,
-                createdAt: new Date().toISOString(),
-              },
-            ]);
           }
+
+          // Extract HTML client-side from the chat-stream response
+          const clientHtml = extractHtml(fullContent);
+          if (clientHtml) setExtractedHtml(clientHtml);
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: fullContent,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
         } catch {
           toast.error('Erreur lors de la communication avec l\'agent');
         }
@@ -227,6 +340,8 @@ export default function WebBuilderView() {
   const copyCode = () => {
     if (extractedHtml) {
       navigator.clipboard.writeText(extractedHtml);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
       toast.success('Code HTML copié !');
     }
   };
@@ -247,6 +362,12 @@ export default function WebBuilderView() {
     desktop: '100%',
     tablet: '768px',
     mobile: '375px',
+  };
+
+  const deviceHeights = {
+    desktop: '100%',
+    tablet: '1024px',
+    mobile: '667px',
   };
 
   if (!agentId && !webbuilderAgent) {
@@ -368,63 +489,89 @@ export default function WebBuilderView() {
   // Preview panel content
   const previewPanel = (
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <div className="border-b px-4 py-1">
-          <TabsList>
-            <TabsTrigger value="preview" className="text-xs">
-              <Eye className="h-3 w-3 mr-1" />
-              Aperçu
-            </TabsTrigger>
-            <TabsTrigger value="code" className="text-xs">
-              <Code2 className="h-3 w-3 mr-1" />
-              Code
-            </TabsTrigger>
-          </TabsList>
+      <div className="border-b px-4 py-1 flex items-center gap-4">
+        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+          <button
+            onClick={() => setActiveTab('preview')}
+            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+              activeTab === 'preview'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Eye className="h-3 w-3" />
+            Aperçu
+          </button>
+          <button
+            onClick={() => setActiveTab('code')}
+            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+              activeTab === 'code'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Code2 className="h-3 w-3" />
+            Code
+          </button>
         </div>
+        {extractedHtml && (
+          <div className="flex items-center gap-1 ml-auto">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyCode} title="Copier le code">
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={downloadHtml} title="Télécharger">
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
 
-        <TabsContent value="preview" className="flex-1 m-0 overflow-auto bg-gray-100 dark:bg-gray-900">
-          <div className="flex justify-center p-4 min-h-full">
-            <div
-              className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
-              style={{
-                width: deviceWidths[deviceMode],
-                maxWidth: '100%',
-                height: deviceMode === 'desktop' ? '100%' : deviceMode === 'tablet' ? '1024px' : '667px',
-                minHeight: '400px',
-              }}
-            >
-              {extractedHtml ? (
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={extractedHtml}
-                  className="w-full h-full border-0"
-                  title="Preview"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <Globe className="h-12 w-12 mb-3 opacity-20" />
-                  <p className="text-sm">L&apos;aperçu apparaîtra ici</p>
-                  <p className="text-xs mt-1">Décrivez un site web pour commencer</p>
-                </div>
-              )}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activeTab === 'preview' ? (
+          <div className="h-full bg-gray-100 dark:bg-gray-900 p-4 overflow-auto">
+            <div className="flex justify-center mx-auto" style={{ maxWidth: deviceWidths[deviceMode] }}>
+              <div
+                className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300 w-full"
+                style={{
+                  height: deviceHeights[deviceMode],
+                  minHeight: '400px',
+                }}
+              >
+                {extractedHtml ? (
+                  <iframe
+                    ref={iframeRef}
+                    srcDoc={extractedHtml}
+                    className="w-full h-full border-0"
+                    title="Aperçu du site"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    style={{ minHeight: '400px' }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-muted-foreground">
+                    <Globe className="h-12 w-12 mb-3 opacity-20" />
+                    <p className="text-sm">L&apos;aperçu apparaîtra ici</p>
+                    <p className="text-xs mt-1">Décrivez un site web pour commencer</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="code" className="flex-1 m-0 overflow-auto">
-          {extractedHtml ? (
-            <pre className="p-4 text-xs overflow-auto bg-muted h-full">
-              <code>{extractedHtml}</code>
-            </pre>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <Code2 className="h-12 w-12 mb-3 opacity-20" />
-              <p className="text-sm">Le code apparaîtra ici</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+        ) : (
+          <div className="h-full overflow-auto">
+            {extractedHtml ? (
+              <pre className="p-4 text-xs overflow-auto bg-muted h-full font-mono leading-relaxed">
+                <code>{extractedHtml}</code>
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-muted-foreground">
+                <Code2 className="h-12 w-12 mb-3 opacity-20" />
+                <p className="text-sm">Le code apparaîtra ici</p>
+                <p className="text-xs mt-1">Décrivez un site web pour commencer</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -445,7 +592,9 @@ export default function WebBuilderView() {
         </div>
         <div className="flex-1">
           <h2 className="text-sm font-medium">Web Builder IA</h2>
-          <p className="text-[11px] text-muted-foreground">Créez des sites web par description</p>
+          <p className="text-[11px] text-muted-foreground">
+            {isStreaming ? 'Génération en cours...' : extractedHtml ? 'Site généré ✓' : 'Créez des sites web par description'}
+          </p>
         </div>
         <div className="hidden sm:flex items-center gap-1">
           {(['desktop', 'tablet', 'mobile'] as const).map((mode) => {
@@ -479,8 +628,7 @@ export default function WebBuilderView() {
         </Button>
       </div>
 
-      {/* Main content: Desktop = side by side, Mobile = tabs */}
-      {/* Desktop layout */}
+      {/* Desktop layout: side by side */}
       <div className="flex-1 flex min-h-0 hidden md:flex">
         <div className="w-96 border-r flex flex-col">
           {chatPanel}

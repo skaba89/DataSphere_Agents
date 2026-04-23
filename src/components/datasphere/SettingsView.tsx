@@ -46,7 +46,7 @@ const providerConfig: Record<string, { name: string; icon: string; color: string
   anthropic: { name: 'Anthropic', icon: '🧠', color: 'from-orange-500 to-amber-600', models: ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'] },
   groq: { name: 'Groq', icon: '⚡', color: 'from-violet-500 to-purple-600', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
   qwen: { name: 'Qwen', icon: '🔮', color: 'from-cyan-500 to-blue-600', models: ['qwen-max', 'qwen-plus', 'qwen-turbo'] },
-  openrouter: { name: 'OpenRouter', icon: '🌐', color: 'from-rose-500 to-pink-600', models: ['openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'meta-llama/llama-3.1-70b-instruct'] },
+  openrouter: { name: 'OpenRouter', icon: '🌐', color: 'from-rose-500 to-pink-600', models: ['meta-llama/llama-3.3-70b-instruct', 'deepseek/deepseek-chat', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet'] },
 };
 
 interface ApiKeyInfo {
