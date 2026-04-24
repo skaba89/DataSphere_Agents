@@ -201,8 +201,11 @@ export default function ChatView() {
     setLoadingConvos(true);
     try {
       const res = await fetch(`/api/conversations?agentId=${selectedAgentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) {
+      console.warn("Conversations: Token expired or invalid, skipping");
+      return;
       if (res.status === 401) { logout(); return; }
       const data = await res.json();
       if (data.conversations) setConversations(data.conversations);

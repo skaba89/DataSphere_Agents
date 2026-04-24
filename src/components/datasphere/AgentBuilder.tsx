@@ -171,7 +171,7 @@ export default function AgentBuilder({ onAgentCreated }: { onAgentCreated?: () =
           Créer un Agent
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600">
