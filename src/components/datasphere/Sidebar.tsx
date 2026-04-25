@@ -18,6 +18,8 @@ import {
   Bell,
   Store,
   BellRing,
+  Crown,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -47,7 +49,9 @@ const navItems = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, badge: 0 },
   { id: 'webbuilder', label: 'Web Builder', icon: Globe, badge: 0 },
   { id: 'documents', label: 'Documents', icon: FileText, badge: 0 },
+  { id: 'billing', label: 'Abonnement', icon: Crown, badge: 0 },
   { id: 'payments', label: 'Paiements', icon: CreditCard, badge: 0 },
+  { id: 'admin', label: 'Administration', icon: Shield, badge: 0 },
   { id: 'settings', label: 'Paramètres', icon: Settings, badge: 0 },
 ];
 
@@ -265,6 +269,9 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto relative">
           {navItems.map((item) => {
+            // Only show admin item to admins
+            if (item.id === 'admin' && user?.role !== 'admin') return null;
+
             const isActive = currentView === item.id;
             const Icon = item.icon;
             const navButton = (

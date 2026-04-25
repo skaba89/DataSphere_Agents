@@ -14,6 +14,8 @@ import PaymentsView from '@/components/datasphere/PaymentsView';
 import SettingsView from '@/components/datasphere/SettingsView';
 import WebBuilderView from '@/components/datasphere/WebBuilderView';
 import MarketplaceView from '@/components/datasphere/MarketplaceView';
+import BillingView from '@/components/datasphere/BillingView';
+import AdminView from '@/components/datasphere/AdminView';
 import MobileNav from '@/components/datasphere/MobileNav';
 
 function AppContent() {
@@ -81,6 +83,10 @@ function AppContent() {
         return <PaymentsView />;
       case 'marketplace':
         return <MarketplaceView />;
+      case 'billing':
+        return <BillingView />;
+      case 'admin':
+        return <AdminView />;
       case 'settings':
         return <SettingsView />;
       default:

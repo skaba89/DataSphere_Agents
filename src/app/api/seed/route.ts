@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedPlans } from "@/lib/saas/stripe";
 
 // Use a fresh PrismaClient instance to avoid caching issues
 function getFreshDb() {
@@ -207,7 +208,8 @@ Si l'utilisateur demande des modifications, régénère le fichier complet avec 
       ],
     });
 
-    // Create sample transactions
+    // Seed SaaS plans and create free subscriptions for users
+    await seedPlans();
     const admin = await db.user.findUnique({ where: { email: "admin@datasphere.ai" } });
     if (admin) {
       await db.transaction.createMany({

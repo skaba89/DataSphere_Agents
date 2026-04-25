@@ -7,22 +7,168 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// CORE USER & AUTH
+// ============================================
+
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  name          String
-  password      String
-  role          String         @default("user")
-  avatar        String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  transactions  Transaction[]
-  documents     Document[]
-  conversations Conversation[]
-  sharedAgents  SharedAgent[]
-  notifications Notification[]
-  apiKeys       ApiKey[]
+  id                String          @id @default(cuid())
+  email             String          @unique
+  name              String
+  password          String
+  role              String          @default("user") // "user", "admin", "owner"
+  avatar            String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  transactions      Transaction[]
+  documents         Document[]
+  conversations     Conversation[]
+  sharedAgents      SharedAgent[]
+  notifications     Notification[]
+  aiApiKeys         AiProviderKey[]
+  subscription      Subscription?
+  usageEvents       UsageEvent[]
+  organizationMembers OrganizationMember[]
+  platformApiKeys   PlatformApiKey[]
 }
+
+// ============================================
+// SAAS - PLANS & SUBSCRIPTIONS
+// ============================================
+
+model Plan {
+  id                String   @id @default(cuid())
+  name              String   @unique // "free", "pro", "enterprise"
+  displayName       String   // "Gratuit", "Pro", "Enterprise"
+  priceMonthly      Float    @default(0)  // Price in EUR/month
+  priceYearly       Float    @default(0)  // Price in EUR/year
+  currency          String   @default("eur")
+  stripePriceId     String?  // Stripe Price ID for monthly
+  stripePriceIdYearly String? // Stripe Price ID for yearly
+  features          String   // JSON string of features list
+  // Quota limits
+  maxAgents         Int      @default(3)
+  maxConversations  Int      @default(50)
+  maxDocuments      Int      @default(5)
+  maxTokensPerMonth Int      @default(100000) // 100k tokens
+  maxTeamMembers    Int      @default(1)
+  maxFileUploadMb   Int      @default(5)
+  allowCustomAgents Boolean  @default(false)
+  allowWebBuilder   Boolean  @default(true)
+  allowApiAccess    Boolean  @default(false)
+  allowPriority     Boolean  @default(false) // Priority AI responses
+  allowWhiteLabel   Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions     Subscription[]
+  organizations     Organization[]
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId            String
+  plan              Plan     @relation(fields: [planId], references: [id])
+  status            String   @default("active") // "active", "past_due", "canceled", "trialing"
+  stripeCustomerId  String?  @unique
+  stripeSubId       String?  @unique
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd  DateTime @default(now())
+  cancelAtPeriodEnd Boolean  @default(false)
+  trialEnd          DateTime?
+  billingInterval   String   @default("monthly") // "monthly", "yearly"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  invoices          Invoice[]
+}
+
+model Invoice {
+  id                String       @id @default(cuid())
+  subscriptionId    String
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount            Float
+  currency          String       @default("eur")
+  status            String       @default("pending") // "pending", "paid", "failed", "refunded"
+  stripeInvoiceId   String?      @unique
+  stripeInvoiceUrl  String?      // Hosted invoice URL from Stripe
+  paidAt            DateTime?
+  createdAt         DateTime     @default(now())
+}
+
+// ============================================
+// SAAS - USAGE METERING
+// ============================================
+
+model UsageEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType   String   // "chat_message", "image_gen", "webbuilder", "document_upload", "speech"
+  tokensUsed  Int      @default(0)  // Approximate token count
+  provider    String   @default("auto") // AI provider used
+  agentId     String?
+  metadata    String   @default("{}") // JSON metadata
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// SAAS - ORGANIZATIONS / TEAMS
+// ============================================
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  planId      String?
+  plan        Plan?    @relation(fields: [planId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     OrganizationMember[]
+}
+
+model OrganizationMember {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String       @default("member") // "owner", "admin", "member"
+  invitedAt       DateTime     @default(now())
+  joinedAt        DateTime?
+
+  @@unique([organizationId, userId])
+}
+
+// ============================================
+// SAAS - PLATFORM API KEYS (for external consumers)
+// ============================================
+
+model PlatformApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // Label for the key
+  keyHash     String   @unique // SHA-256 hash of the actual key
+  keyPrefix   String   // First 8 chars for identification (e.g., "ds_live_")
+  permissions String   @default("read") // JSON: ["read", "write", "admin"]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// AI AGENTS & CONVERSATIONS
+// ============================================
 
 model Agent {
   id            String        @id @default(cuid())
@@ -37,27 +183,6 @@ model Agent {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   conversations Conversation[]
-}
-
-model Transaction {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  amount    Float
-  phone     String
-  status    String   @default("success")
-  provider  String   @default("Mobile Money")
-  createdAt DateTime @default(now())
-}
-
-model Document {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  filename  String
-  content   String
-  size      Int      @default(0)
-  createdAt DateTime @default(now())
 }
 
 model Conversation {
@@ -81,6 +206,10 @@ model ChatMessage {
   createdAt      DateTime     @default(now())
 }
 
+// ============================================
+// MARKETPLACE
+// ============================================
+
 model SharedAgent {
   id           String   @id @default(cuid())
   name         String
@@ -99,6 +228,35 @@ model SharedAgent {
   updatedAt    DateTime @updatedAt
 }
 
+// ============================================
+// DOCUMENTS & TRANSACTIONS
+// ============================================
+
+model Document {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  filename  String
+  content   String
+  size      Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  phone     String
+  status    String   @default("success")
+  provider  String   @default("Mobile Money")
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String
@@ -110,10 +268,14 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
-model ApiKey {
+// ============================================
+// AI PROVIDER KEYS (per-user encrypted)
+// ============================================
+
+model AiProviderKey {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider  String   // "openai", "anthropic", "groq", "qwen", "openrouter"
   keyEnc    String   // encrypted API key
   model     String   @default("") // preferred model for this provider

@@ -6,6 +6,7 @@ import {
   checkRateLimit,
   isValidEmail,
 } from "@/lib/security";
+import { seedPlans } from "@/lib/saas/stripe";
 
 // Auto-seed the database if no users exist
 async function ensureSeedData() {
@@ -118,6 +119,9 @@ async function ensureSeedData() {
     });
 
     console.log("[Auto-Seed] Database seeded successfully with admin & demo users + agents.");
+
+    // Seed SaaS plans and create free subscriptions
+    await seedPlans();
   } catch (seedError) {
     console.error("[Auto-Seed] Error seeding database:", seedError);
   }
