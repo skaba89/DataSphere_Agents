@@ -16,8 +16,10 @@ model User {
   email             String          @unique
   name              String
   password          String
-  role              String          @default("user") // "user", "admin", "owner"
+  role              String          @default("user") // "user", "admin", "super_admin"
   avatar            String?
+  isActive          Boolean         @default(true) // Account active/suspended
+  lastLoginAt       DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -32,6 +34,8 @@ model User {
   usageEvents       UsageEvent[]
   organizationMembers OrganizationMember[]
   platformApiKeys   PlatformApiKey[]
+  agentRatings      AgentRating[]
+  auditLogs         AuditLog[]
 }
 
 // ============================================
@@ -180,21 +184,33 @@ model Agent {
   color         String        @default("emerald")
   isDefault     Boolean       @default(false)
   creatorId     String?
+  isTemplate    Boolean       @default(false) // True if this is a reusable template
+  templateCategory String?    // Category for template marketplace
+  tags          String        @default("[]") // JSON array of tags
+  avgRating     Float         @default(0) // Average rating from users
+  ratingCount   Int           @default(0) // Number of ratings
+  totalConversations Int      @default(0) // Usage counter
+  isActive      Boolean       @default(true) // Can be disabled by admin
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   conversations Conversation[]
+  ratings       AgentRating[]
 }
 
 model Conversation {
-  id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id])
-  agentId   String
-  agent     Agent        @relation(fields: [agentId], references: [id])
-  title     String
-  messages  ChatMessage[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  agentId     String
+  agent       Agent        @relation(fields: [agentId], references: [id])
+  title       String
+  isPinned    Boolean      @default(false) // Pinned/favorite conversation
+  isArchived  Boolean      @default(false) // Archived conversation
+  tags        String       @default("[]") // JSON array of tags for search
+  summary     String?      // AI-generated conversation summary
+  messages    ChatMessage[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model ChatMessage {
@@ -203,6 +219,11 @@ model ChatMessage {
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   role           String
   content        String
+  model          String?      // AI model used for this response
+  provider       String?      // AI provider used
+  tokensUsed     Int          @default(0) // Token count for this message
+  responseTime   Int          @default(0) // Response time in ms
+  rating         Int?         // User rating 1-5 for this response
   createdAt      DateTime     @default(now())
 }
 
@@ -284,4 +305,51 @@ model AiProviderKey {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, provider])
+}
+
+// ============================================
+// AGENT RATINGS & REVIEWS
+// ============================================
+
+model AgentRating {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5 stars
+  review    String?  // Optional text review
+  createdAt DateTime @default(now())
+
+  @@unique([userId, agentId])
+}
+
+// ============================================
+// AUDIT LOG (Admin compliance & tracking)
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // "user.login", "user.create", "agent.create", "admin.role_change", etc.
+  entity    String?  // Target entity type (User, Agent, Conversation, etc.)
+  entityId  String?  // Target entity ID
+  details   String   @default("{}") // JSON details
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// AI COMPARISON RESULTS
+// ============================================
+
+model ComparisonResult {
+  id              String   @id @default(cuid())
+  userId          String
+  prompt          String   // The original prompt sent to all providers
+  results         String   // JSON: [{provider, model, response, tokensUsed, responseTime, rating}]
+  bestProvider    String?  // Auto-determined best result
+  createdAt       DateTime @default(now())
 }

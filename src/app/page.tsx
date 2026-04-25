@@ -17,6 +17,8 @@ import MarketplaceView from '@/components/datasphere/MarketplaceView';
 import BillingView from '@/components/datasphere/BillingView';
 import AdminView from '@/components/datasphere/AdminView';
 import MobileNav from '@/components/datasphere/MobileNav';
+import ComparisonView from '@/components/datasphere/ComparisonView';
+import TemplatesView from '@/components/datasphere/TemplatesView';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
@@ -83,6 +85,10 @@ function AppContent() {
         return <PaymentsView />;
       case 'marketplace':
         return <MarketplaceView />;
+      case 'templates':
+        return <TemplatesView />;
+      case 'comparison':
+        return <ComparisonView />;
       case 'billing':
         return <BillingView />;
       case 'admin':

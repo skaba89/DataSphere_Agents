@@ -20,6 +20,9 @@ import {
   BellRing,
   Crown,
   Shield,
+  LayoutTemplate,
+  GitCompare,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -45,13 +48,15 @@ interface Notification {
 const navItems = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, badge: 0 },
   { id: 'agents', label: 'Agents IA', icon: Bot, badge: 0 },
+  { id: 'templates', label: 'Templates', icon: LayoutTemplate, badge: 0 },
   { id: 'marketplace', label: 'Marketplace', icon: Store, badge: 0 },
   { id: 'chat', label: 'Chat', icon: MessageSquare, badge: 0 },
+  { id: 'comparison', label: 'Comparaison IA', icon: GitCompare, badge: 0 },
   { id: 'webbuilder', label: 'Web Builder', icon: Globe, badge: 0 },
   { id: 'documents', label: 'Documents', icon: FileText, badge: 0 },
   { id: 'billing', label: 'Abonnement', icon: Crown, badge: 0 },
   { id: 'payments', label: 'Paiements', icon: CreditCard, badge: 0 },
-  { id: 'admin', label: 'Administration', icon: Shield, badge: 0 },
+  { id: 'admin', label: 'Administration', icon: Shield, badge: 0, adminOnly: true },
   { id: 'settings', label: 'Paramètres', icon: Settings, badge: 0 },
 ];
 
@@ -269,8 +274,8 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto relative">
           {navItems.map((item) => {
-            // Only show admin item to admins
-            if (item.id === 'admin' && user?.role !== 'admin') return null;
+            // Only show admin item to admins/super_admins
+            if (item.adminOnly && user?.role !== 'admin' && user?.role !== 'super_admin') return null;
 
             const isActive = currentView === item.id;
             const Icon = item.icon;

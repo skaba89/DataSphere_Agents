@@ -7,6 +7,7 @@ import {
   isValidEmail,
 } from "@/lib/security";
 import { seedPlans } from "@/lib/saas/stripe";
+import { auditLog } from "@/lib/audit";
 
 // Auto-seed the database if no users exist
 async function ensureSeedData() {
@@ -176,10 +177,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if account is active
+    if (user.isActive === false) {
+      return NextResponse.json(
+        { error: "Votre compte a été suspendu. Contactez l'administrateur." },
+        { status: 403 }
+      );
+    }
+
+    // Update last login time
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
     const token = await signToken({
       userId: user.id,
       email: user.email,
       role: user.role,
+    });
+
+    // Audit log for login
+    await auditLog({
+      userId: user.id,
+      action: "user.login",
+      entity: "User",
+      entityId: user.id,
     });
 
     return NextResponse.json({
