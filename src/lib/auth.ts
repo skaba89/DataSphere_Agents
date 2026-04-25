@@ -84,7 +84,7 @@ export async function verifyToken(token: string) {
     }
 
     return payload as { userId: string; email: string; role: string };
-  } catch {
+  } catch (_e) {
     return null;
   }
 }

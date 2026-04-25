@@ -50,16 +50,43 @@ export default function LoginView() {
       setAuth(user, token);
       setCurrentView('dashboard');
       toast.success(`Bienvenue, ${user.name} !`);
-    } catch {
+    } catch (_e) {
       toast.error('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDemo = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
+  const fillDemo = (demoEmail: string, demoPassword: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setIsLogin(true);
+  };
+
+  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: demoEmail, password: demoPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Erreur de connexion');
+        return;
+      }
+
+      setAuth(data.user, data.token);
+      setCurrentView('dashboard');
+      toast.success(`Bienvenue, ${data.user.name} !`);
+    } catch (_e) {
+      toast.error('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -297,7 +324,8 @@ export default function LoginView() {
                   variant="outline"
                   size="sm"
                   className="text-xs gradient-border hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400"
-                  onClick={() => fillDemo('admin@datasphere.ai', 'admin123')}
+                  onClick={() => handleDemoLogin('admin@datasphere.ai', 'admin123')}
+                  disabled={loading}
                 >
                   👑 Admin
                 </Button>
@@ -305,7 +333,8 @@ export default function LoginView() {
                   variant="outline"
                   size="sm"
                   className="text-xs gradient-border hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400"
-                  onClick={() => fillDemo('demo@datasphere.ai', 'demo123')}
+                  onClick={() => handleDemoLogin('demo@datasphere.ai', 'demo123')}
+                  disabled={loading}
                 >
                   👤 Demo
                 </Button>

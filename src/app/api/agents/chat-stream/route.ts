@@ -469,7 +469,7 @@ export async function POST(req: NextRequest) {
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "token", content })}\n\n`));
                             streamingWorked = true;
                           }
-                        } catch { /* skip */ }
+                        } catch (_e) { /* skip */ }
                       }
                     }
                     if (sseBuffer.trim()) {
@@ -485,7 +485,7 @@ export async function POST(req: NextRequest) {
                               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "token", content })}\n\n`));
                               streamingWorked = true;
                             }
-                          } catch { /* skip */ }
+                          } catch (_e) { /* skip */ }
                         }
                       }
                     }
@@ -550,7 +550,7 @@ export async function POST(req: NextRequest) {
                 })}\n\n`
               )
             );
-          } catch {
+          } catch (_e) {
             // Controller may already be closed
           }
         } catch (err) {
@@ -573,7 +573,7 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch {
+  } catch (_e) {
     return new Response(JSON.stringify({ error: "Erreur serveur" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

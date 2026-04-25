@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
                             );
                             streamingWorked = true;
                           }
-                        } catch {
+                        } catch (_e) {
                           // JSON parse failed, skip
                         }
                       }
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
                               );
                               streamingWorked = true;
                             }
-                          } catch { /* ignore */ }
+                          } catch (_e) { /* ignore */ }
                         }
                       }
                     }
@@ -438,7 +438,7 @@ export async function POST(req: NextRequest) {
                 })}\n\n`
               )
             );
-          } catch {
+          } catch (_e) {
             // Controller may already be closed
           }
         } catch (err) {
@@ -461,7 +461,7 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch {
+  } catch (_e) {
     return new Response(JSON.stringify({ error: "Erreur serveur" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

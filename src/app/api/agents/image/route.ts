@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ imageUrl, prompt });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     return NextResponse.json({ notifications, unreadCount });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

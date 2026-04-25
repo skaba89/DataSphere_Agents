@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ agent: shared });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

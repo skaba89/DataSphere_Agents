@@ -95,7 +95,7 @@ export default function Sidebar() {
           setNotifications(data.notifications || []);
           setUnreadCount(data.unreadCount || 0);
         }
-      } catch {
+      } catch (_e) {
         // silent
       }
     };
@@ -121,7 +121,7 @@ export default function Sidebar() {
       });
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch {
+    } catch (_e) {
       // silent
     }
   };

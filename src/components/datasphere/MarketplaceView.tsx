@@ -175,7 +175,7 @@ export default function MarketplaceView() {
         const data = await res.json();
         setMarketplaceAgents(data.agents || []);
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement du marketplace');
     } finally {
       setLoading(false);
@@ -206,7 +206,7 @@ export default function MarketplaceView() {
       toast.success(`Agent "${agentName}" installé avec succès !`);
       // Refresh to update download count
       fetchMarketplace();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de l\'installation');
     } finally {
       setInstalling(null);
@@ -238,7 +238,7 @@ export default function MarketplaceView() {
       setPublishDialogOpen(false);
       setPublishAgentId('');
       fetchMarketplace();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la publication');
     } finally {
       setPublishing(false);
@@ -264,7 +264,7 @@ export default function MarketplaceView() {
       }
       toast.success(`Note de ${rating}/5 enregistrée !`);
       fetchMarketplace();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la notation');
     } finally {
       setRatingAgent(null);

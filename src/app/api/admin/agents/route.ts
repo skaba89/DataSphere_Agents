@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ agents });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -49,7 +49,7 @@ export async function DELETE(req: NextRequest) {
     await db.agent.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

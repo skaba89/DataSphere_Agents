@@ -54,7 +54,7 @@ function AppContent() {
           const data = await res.json();
           if (data.agents) setAgents(data.agents);
         }
-      } catch {
+      } catch (_e) {
         // silent
       }
     };
@@ -147,11 +147,11 @@ export default function Home() {
                 }
               }
             }
-          } catch {
+          } catch (_e) {
             // Network error — still restore auth (might be temporary)
             setAuth(user, token);
           }
-        } catch {
+        } catch (_e) {
           localStorage.removeItem('ds_token');
           localStorage.removeItem('ds_user');
         }

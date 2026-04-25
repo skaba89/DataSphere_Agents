@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest) {
         avatar: user.avatar,
       },
     });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

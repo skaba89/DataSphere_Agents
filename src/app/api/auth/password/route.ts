@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ message: "Mot de passe mis à jour" });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

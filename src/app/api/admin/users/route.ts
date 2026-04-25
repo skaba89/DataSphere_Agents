@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ users });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
 
     const user = await db.user.update({ where: { id }, data: { role } });
     return NextResponse.json({ user });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -76,7 +76,7 @@ export async function DELETE(req: NextRequest) {
     await db.user.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       for (const table of deleteOrder) {
         try {
           await db.$executeRawUnsafe(`DELETE FROM "${table}" WHERE 1=1`);
-        } catch {
+        } catch (_e) {
           // Table might not exist yet, skip
         }
       }

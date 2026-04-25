@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     let body;
     try {
       body = await request.json();
-    } catch {
+    } catch (_e) {
       return NextResponse.json(
         { error: "Corps de la requête invalide" },
         { status: 400 }

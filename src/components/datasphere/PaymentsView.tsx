@@ -44,7 +44,7 @@ export default function PaymentsView() {
       });
       const data = await res.json();
       if (data.transactions) setTransactions(data.transactions);
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement des transactions');
     } finally {
       setLoading(false);
@@ -80,7 +80,7 @@ export default function PaymentsView() {
       setPhone('');
       setAmount('');
       fetchTransactions();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du paiement');
     } finally {
       setPaying(false);

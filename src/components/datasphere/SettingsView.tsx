@@ -91,7 +91,7 @@ export default function SettingsView() {
       });
       const data = await res.json();
       if (data.keys) setApiKeys(data.keys);
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement des clés API');
     } finally {
       setLoadingKeys(false);
@@ -124,7 +124,7 @@ export default function SettingsView() {
       } else {
         toast.error(data.error || 'Erreur');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la sauvegarde');
     } finally {
       setSavingProfile(false);
@@ -151,7 +151,7 @@ export default function SettingsView() {
       } else {
         toast.error(data.error || 'Erreur');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du changement de mot de passe');
     } finally {
       setSavingPassword(false);
@@ -185,7 +185,7 @@ export default function SettingsView() {
       } else {
         toast.error(data.error || 'Erreur');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la sauvegarde');
     } finally {
       setSavingKey(false);
@@ -204,7 +204,7 @@ export default function SettingsView() {
       } else {
         toast.error('Erreur lors de la suppression');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur');
     }
   };
@@ -222,7 +222,7 @@ export default function SettingsView() {
       } else {
         toast.error(`Impossible de se connecter à ${providerConfig[provider]?.name || provider}`);
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du test de connexion');
     } finally {
       setTimeout(() => setTestingProvider(null), 500);

@@ -216,7 +216,7 @@ export default function WebBuilderView() {
             } else if (parsed.type === 'error') {
               toast.error(parsed.content || 'Erreur lors de la génération');
             }
-          } catch { /* skip */ }
+          } catch (_e) { /* skip */ }
         }
       }
 
@@ -232,7 +232,7 @@ export default function WebBuilderView() {
             if (parsed.fullResponse) {
               fullContent = parsed.fullResponse;
             }
-          } catch { /* skip */ }
+          } catch (_e) { /* skip */ }
         }
       }
 
@@ -305,7 +305,7 @@ export default function WebBuilderView() {
                     setActiveConversationId(parsed.conversationId);
                   }
                 }
-              } catch { /* skip */ }
+              } catch (_e) { /* skip */ }
             }
           }
 
@@ -322,7 +322,7 @@ export default function WebBuilderView() {
               createdAt: new Date().toISOString(),
             },
           ]);
-        } catch {
+        } catch (_e) {
           toast.error('Erreur lors de la communication avec l\'agent');
         }
       }

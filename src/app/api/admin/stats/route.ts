@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       documents,
       revenue: revenueResult._sum.amount || 0,
     });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

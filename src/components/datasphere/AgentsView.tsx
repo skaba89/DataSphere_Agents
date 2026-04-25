@@ -156,7 +156,7 @@ export default function AgentsView() {
       }
       const data = await res.json();
       if (data.agents) setAgents(data.agents);
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement des agents');
     } finally {
       setLoading(false);
@@ -173,7 +173,7 @@ export default function AgentsView() {
     if (saved) {
       try {
         setFavorites(new Set(JSON.parse(saved)));
-      } catch { /* ignore */ }
+      } catch (_e) { /* ignore */ }
     }
   }, []);
 
@@ -241,7 +241,7 @@ export default function AgentsView() {
       setDialogOpen(false);
       resetForm();
       fetchAgents();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la création de l\'agent');
     } finally {
       setCreating(false);
@@ -261,7 +261,7 @@ export default function AgentsView() {
       }
       toast.success(`Agent "${agentName}" supprimé`);
       fetchAgents();
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la suppression');
     }
   };

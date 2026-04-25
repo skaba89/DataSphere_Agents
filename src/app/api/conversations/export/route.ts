@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         "Content-Disposition": `attachment; filename="conversation-${conversationId}.txt"`,
       },
     });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

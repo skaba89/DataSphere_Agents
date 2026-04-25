@@ -201,15 +201,16 @@ export default function ChatView() {
     setLoadingConvos(true);
     try {
       const res = await fetch(`/api/conversations?agentId=${selectedAgentId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.status === 401) {
-      console.warn("Conversations: Token expired or invalid, skipping");
-      return;
-      if (res.status === 401) { logout(); return; }
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        console.warn("Conversations: Token expired or invalid, skipping");
+        logout();
+        return;
+      }
       const data = await res.json();
       if (data.conversations) setConversations(data.conversations);
-    } catch {
+    } catch (e) {
       // silent
     } finally {
       setLoadingConvos(false);
@@ -236,7 +237,7 @@ export default function ChatView() {
           }))
         );
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement des messages');
     } finally {
       setLoadingMessages(false);
@@ -374,7 +375,7 @@ export default function ChatView() {
             } else if (parsed.type === 'error') {
               toast.error(parsed.content || 'Erreur lors du streaming');
             }
-          } catch {
+          } catch (_e) {
             // skip unparseable lines
           }
         }
@@ -432,7 +433,7 @@ export default function ChatView() {
             setMessages((prev) => [...prev, assistantMsg]);
             fetchConversations();
           }
-        } catch {
+        } catch (_e) {
           toast.error('Erreur lors de l\'envoi du message');
         }
         setStreamingContent('');
@@ -471,7 +472,7 @@ export default function ChatView() {
       }
       fetchConversations();
       toast.success('Conversation supprimée');
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la suppression');
     }
   };
@@ -541,7 +542,7 @@ export default function ChatView() {
       } else {
         toast.error('Aucune image n\'a pu être générée');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la génération de l\'image');
     } finally {
       setImageGenerating(false);

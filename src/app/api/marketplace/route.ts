@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const agents = await db.sharedAgent.findMany({ where, orderBy });
 
     return NextResponse.json({ agents });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -163,7 +163,7 @@ function parseTaskData(raw: string): TaskData {
       status: json.status || 'running',
       progress: typeof json.progress === 'number' ? json.progress : 0,
     };
-  } catch {
+  } catch (_e) {
     return { title: raw.trim(), status: 'running', progress: 0 };
   }
 }
@@ -172,7 +172,7 @@ function parseChartData(chartType: string, raw: string): ChartData {
   try {
     const data = JSON.parse(raw.trim());
     return { type: chartType as 'bar' | 'line' | 'pie', data: Array.isArray(data) ? data : [] };
-  } catch {
+  } catch (_e) {
     return { type: chartType as 'bar' | 'line' | 'pie', data: [] };
   }
 }

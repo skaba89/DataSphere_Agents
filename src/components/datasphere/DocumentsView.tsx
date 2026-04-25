@@ -40,7 +40,7 @@ export default function DocumentsView() {
       });
       const data = await res.json();
       if (data.documents) setDocuments(data.documents);
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors du chargement des documents');
     } finally {
       setLoading(false);
@@ -77,7 +77,7 @@ export default function DocumentsView() {
           const data = await res.json();
           toast.error(`Erreur pour ${file.name}: ${data.error}`);
         }
-      } catch {
+      } catch (_e) {
         toast.error(`Erreur lors de la lecture de ${file.name}`);
       }
     }
@@ -101,7 +101,7 @@ export default function DocumentsView() {
       } else {
         toast.error('Erreur lors de la suppression');
       }
-    } catch {
+    } catch (_e) {
       toast.error('Erreur lors de la suppression');
     }
   };

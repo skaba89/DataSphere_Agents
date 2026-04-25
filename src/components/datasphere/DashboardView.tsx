@@ -117,7 +117,7 @@ export default function DashboardView() {
         }
         const result = await res.json();
         if (res.ok) setData(result);
-      } catch {
+      } catch (_e) {
         toast.error('Erreur lors du chargement du dashboard');
       } finally {
         setLoading(false);
@@ -135,7 +135,7 @@ export default function DashboardView() {
         }
         const result = await res.json();
         if (result.agents) setAgents(result.agents);
-      } catch {
+      } catch (_e) {
         // silent
       }
     };
@@ -152,7 +152,7 @@ export default function DashboardView() {
     return 'Bonsoir';
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="p-4 md:p-6 max-w-7xl mx-auto">
         <div className="mb-8">
@@ -168,10 +168,23 @@ export default function DashboardView() {
     );
   }
 
+  // Fallback data when API fails
+  const safeData = data || {
+    totalRevenue: 0,
+    totalTransactions: 0,
+    todayRevenue: 0,
+    todayTransactions: 0,
+    chartData: [],
+    userCount: 0,
+    agentCount: 0,
+    documentCount: 0,
+    recentTransactions: [],
+  };
+
   const stats = [
     {
       title: 'Revenu Total',
-      value: `${(data.totalRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      value: `${(safeData.totalRevenue || 0).toLocaleString('fr-FR')} GNF`,
       change: '+12.5%',
       up: true,
       icon: DollarSign,
@@ -180,8 +193,8 @@ export default function DashboardView() {
     },
     {
       title: "Aujourd'hui",
-      value: `${(data.todayRevenue || 0).toLocaleString('fr-FR')} GNF`,
-      change: `${data.todayTransactions || 0} transactions`,
+      value: `${(safeData.todayRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      change: `${safeData.todayTransactions || 0} transactions`,
       up: true,
       icon: TrendingUp,
       gradient: 'from-amber-500 to-orange-600',
@@ -189,7 +202,7 @@ export default function DashboardView() {
     },
     {
       title: 'Utilisateurs',
-      value: data.userCount || 0,
+      value: safeData.userCount || 0,
       change: 'Actifs',
       up: true,
       icon: Users,
@@ -198,8 +211,8 @@ export default function DashboardView() {
     },
     {
       title: 'Documents',
-      value: data.documentCount || 0,
-      change: `${data.agentCount || 0} agents`,
+      value: safeData.documentCount || 0,
+      change: `${safeData.agentCount || 0} agents`,
       up: true,
       icon: FileText,
       gradient: 'from-rose-500 to-pink-600',
@@ -354,10 +367,10 @@ export default function DashboardView() {
               </div>
             </CardHeader>
             <CardContent>
-              {data.chartData && data.chartData.length > 0 ? (
+              {safeData.chartData && safeData.chartData.length > 0 ? (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.chartData}>
+                    <AreaChart data={safeData.chartData}>
                       <defs>
                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
@@ -598,7 +611,7 @@ export default function DashboardView() {
       </motion.div>
 
       {/* Recent transactions */}
-      {data.recentTransactions && data.recentTransactions.length > 0 && (
+      {safeData.recentTransactions && safeData.recentTransactions.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

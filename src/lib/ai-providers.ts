@@ -121,7 +121,7 @@ function decryptKey(enc: string): string {
       decrypted += decipher.final("utf-8");
       return decrypted;
     }
-  } catch {
+  } catch (_e) {
     // Fall through to legacy decryption
   }
 
@@ -136,7 +136,7 @@ function decryptKey(enc: string): string {
       );
     }
     return result;
-  } catch {
+  } catch (_e) {
     throw new Error("Failed to decrypt API key");
   }
 }
@@ -357,7 +357,7 @@ async function* openAICompatibleStream(
           if (content) {
             yield { content, done: false };
           }
-        } catch {
+        } catch (_e) {
           // skip malformed JSON
         }
       }
@@ -376,7 +376,7 @@ async function* openAICompatibleStream(
             if (content) {
               yield { content, done: false };
             }
-          } catch {
+          } catch (_e) {
             // skip
           }
         }
@@ -458,7 +458,7 @@ async function* anthropicStream(
             yield { content: "", done: true };
             return;
           }
-        } catch {
+        } catch (_e) {
           // skip
         }
       }
