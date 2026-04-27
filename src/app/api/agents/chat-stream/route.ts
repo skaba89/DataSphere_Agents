@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { resolveProvider, streamChatCompletion, PROVIDERS, ProviderId } from "@/lib/ai-providers";
-import { checkRateLimit, sanitizeForLLM, isValidAgentId } from "@/lib/security";
+import { checkRateLimit, sanitizeForLLM, isValidAgentId, checkPlanRateLimit } from "@/lib/security";
+import { checkTokenQuota, checkConversationQuota, recordUsage, getUserPlan } from "@/lib/saas/quotas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -243,6 +244,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Plan-based rate limiting
+    const { planName } = await getUserPlan(payload.userId);
+    const planRateResult = checkPlanRateLimit(payload.userId, planName);
+    if (!planRateResult.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Limite de messages atteinte (${planName === 'free' ? '15' : planName === 'pro' ? '60' : '120'} messages/minute sur le plan ${planName === 'free' ? 'Gratuit' : planName === 'pro' ? 'Pro' : 'Enterprise'}). Réessayez dans ${planRateResult.retryAfter} secondes.`,
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(planRateResult.retryAfter || 60),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const agentId = body.agentId || "";
     const message = sanitizeForLLM(body.message || "", 5000);
@@ -270,6 +289,26 @@ export async function POST(req: NextRequest) {
         status: 404,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // Check conversation quota if creating a new conversation
+    if (!conversationId) {
+      const convQuota = await checkConversationQuota(payload.userId);
+      if (!convQuota.allowed) {
+        return new Response(
+          JSON.stringify({ error: convQuota.reason, quotaExceeded: true, quotaType: "conversations" }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Check token quota (estimate ~500 tokens per message)
+    const tokenQuota = await checkTokenQuota(payload.userId, 500);
+    if (!tokenQuota.allowed) {
+      return new Response(
+        JSON.stringify({ error: tokenQuota.reason, quotaExceeded: true, quotaType: "tokens" }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     let convId = conversationId;
@@ -539,6 +578,15 @@ export async function POST(req: NextRequest) {
             },
           });
 
+          // Record usage event
+          await recordUsage({
+            userId: payload.userId,
+            eventType: 'chat_message',
+            tokensUsed: Math.ceil(fullResponse.length / 4), // rough token estimate
+            provider: providerInfo?.provider || 'zai',
+            agentId: agentId,
+          });
+
           // Send done event
           try {
             controller.enqueue(
@@ -547,6 +595,7 @@ export async function POST(req: NextRequest) {
                   type: "done",
                   conversationId: convId,
                   fullResponse,
+                  quotaRemaining: tokenQuota.remaining,
                 })}\n\n`
               )
             );

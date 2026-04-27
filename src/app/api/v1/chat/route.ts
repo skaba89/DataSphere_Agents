@@ -1,22 +1,55 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { authenticatePlatformKey } from "@/lib/platform-auth";
 import { resolveProvider, chatCompletion, PROVIDERS } from "@/lib/ai-providers";
-import { checkTokenQuota, checkConversationQuota, recordUsage } from "@/lib/saas/quotas";
 
+/**
+ * POST /api/v1/chat
+ *
+ * External API endpoint that supports both JWT and Platform API key authentication.
+ * If the Bearer token starts with "ds_live_", use platform key auth; otherwise use JWT auth.
+ * Enforces that the platform key must have "chat" in its permissions array.
+ */
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+      return NextResponse.json({ error: "Non autorisé — Bearer token requis" }, { status: 401 });
     }
 
-    const token = authHeader.split(" ")[1];
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    const token = authHeader.slice(7);
+    let userId: string;
+    let isPlatformKey = false;
+
+    // Determine auth method: platform key vs JWT
+    if (token.startsWith("ds_live_")) {
+      // Platform API key authentication
+      const authResult = await authenticatePlatformKey(token);
+      if (!authResult) {
+        return NextResponse.json({ error: "Clé API platform invalide ou expirée" }, { status: 401 });
+      }
+
+      // Enforce permissions: key must have "chat" in its permissions
+      if (!authResult.permissions.includes("chat")) {
+        return NextResponse.json(
+          { error: "Permission insuffisante — la clé ne dispose pas de la permission 'chat'" },
+          { status: 403 }
+        );
+      }
+
+      userId = authResult.userId;
+      isPlatformKey = true;
+    } else {
+      // JWT authentication
+      const payload = await verifyToken(token);
+      if (!payload) {
+        return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+      }
+      userId = payload.userId;
     }
 
+    // Parse request body
     let body;
     try {
       body = await request.json();
@@ -27,87 +60,60 @@ export async function POST(request: Request) {
       );
     }
 
-    const { agentId, message, conversationId, provider: requestedProvider } = body;
+    const { agentId, message, stream } = body;
 
     if (!agentId || !message) {
       return NextResponse.json(
-        { error: "Agent ID et message requis" },
+        { error: "agentId et message requis" },
         { status: 400 }
       );
     }
 
+    // Streaming is not supported via this endpoint (use chat-stream instead)
+    if (stream) {
+      return NextResponse.json(
+        { error: "Le streaming n'est pas supporté sur cet endpoint. Utilisez /api/agents/chat-stream à la place." },
+        { status: 400 }
+      );
+    }
+
+    // Find the agent
     const agent = await db.agent.findUnique({ where: { id: agentId } });
     if (!agent) {
       return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     }
 
-    // Check conversation quota if creating a new conversation
-    if (!conversationId) {
-      const convQuota = await checkConversationQuota(payload.userId);
-      if (!convQuota.allowed) {
-        return NextResponse.json(
-          { error: convQuota.reason, quotaExceeded: true, quotaType: "conversations" },
-          { status: 403 }
-        );
-      }
+    if (!agent.isActive) {
+      return NextResponse.json({ error: "Agent désactivé" }, { status: 403 });
     }
 
-    // Check token quota (estimate ~500 tokens per message)
-    const tokenQuota = await checkTokenQuota(payload.userId, 500);
-    if (!tokenQuota.allowed) {
-      return NextResponse.json(
-        { error: tokenQuota.reason, quotaExceeded: true, quotaType: "tokens" },
-        { status: 403 }
-      );
-    }
-
-    // Get or create conversation
-    let convId = conversationId;
-    if (!convId) {
-      const conv = await db.conversation.create({
-        data: {
-          userId: payload.userId,
-          agentId,
-          title: message.slice(0, 60) + (message.length > 60 ? "..." : ""),
-        },
-      });
-      convId = conv.id;
-    }
-
-    // Verify conversation ownership
-    const conversation = await db.conversation.findUnique({
-      where: { id: convId },
+    // Create a new conversation for this API request
+    const conversation = await db.conversation.create({
+      data: {
+        userId,
+        agentId,
+        title: message.slice(0, 60) + (message.length > 60 ? "..." : ""),
+      },
     });
-    if (!conversation || conversation.userId !== payload.userId) {
-      return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
-    }
 
     // Save user message
     await db.chatMessage.create({
       data: {
-        conversationId: convId,
+        conversationId: conversation.id,
         role: "user",
         content: message,
       },
     });
 
-    // Get recent conversation context
-    const recentMessages = await db.chatMessage.findMany({
-      where: { conversationId: convId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    const conversationHistory = recentMessages
-      .reverse()
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    // Build conversation history (just the user message for a new conversation)
+    const conversationHistory = [{ role: "user" as const, content: message }];
 
     // Build system prompt — enhanced with RAG for data-type agents
     let systemPrompt = agent.systemPrompt;
 
     if (agent.type === "data") {
       const documents = await db.document.findMany({
-        where: { userId: payload.userId },
+        where: { userId },
         orderBy: { createdAt: "desc" },
         take: 5,
       });
@@ -125,8 +131,7 @@ export async function POST(request: Request) {
     // Call AI — try multi-provider first, then fallback to Z-AI SDK
     let assistantContent: string;
 
-    // Try multi-provider
-    const providerInfo = await resolveProvider(payload.userId, requestedProvider);
+    const providerInfo = await resolveProvider(userId);
 
     if (providerInfo) {
       try {
@@ -160,41 +165,33 @@ export async function POST(request: Request) {
           "Désolé, je n'ai pas pu générer une réponse.";
       } catch (aiError) {
         console.error("Z-AI SDK error:", aiError);
-        assistantContent = "Aucun fournisseur IA n'est configuré. Veuillez ajouter une clé API dans les Paramètres (OpenAI, Anthropic, Groq, Qwen ou OpenRouter).";
+        assistantContent = "Aucun fournisseur IA n'est configuré. Veuillez ajouter une clé API dans les Paramètres.";
       }
     }
 
     // Save assistant response
     await db.chatMessage.create({
       data: {
-        conversationId: convId,
+        conversationId: conversation.id,
         role: "assistant",
         content: assistantContent,
       },
     });
 
-    // Record usage event
-    await recordUsage({
-      userId: payload.userId,
-      eventType: 'chat_message',
-      tokensUsed: Math.ceil(assistantContent.length / 4), // rough token estimate
-      provider: providerInfo?.provider || 'zai',
-      agentId: agentId,
-    });
-
     // Update conversation timestamp
     await db.conversation.update({
-      where: { id: convId },
+      where: { id: conversation.id },
       data: { updatedAt: new Date() },
     });
 
     return NextResponse.json({
       response: assistantContent,
-      conversationId: convId,
-      quotaRemaining: tokenQuota.remaining,
+      conversationId: conversation.id,
+      agentId: agent.id,
+      authType: isPlatformKey ? "platform_key" : "jwt",
     });
   } catch (error) {
-    console.error("Chat error:", error);
+    console.error("V1 Chat error:", error);
     return NextResponse.json(
       { error: "Erreur lors du chat avec l'agent" },
       { status: 500 }

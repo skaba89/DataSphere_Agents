@@ -19,6 +19,10 @@ import AdminView from '@/components/datasphere/AdminView';
 import MobileNav from '@/components/datasphere/MobileNav';
 import ComparisonView from '@/components/datasphere/ComparisonView';
 import TemplatesView from '@/components/datasphere/TemplatesView';
+import OrganizationsView from '@/components/datasphere/OrganizationsView';
+import PromptGeneratorView from '@/components/datasphere/PromptGeneratorView';
+import SaasGeneratorView from '@/components/datasphere/SaasGeneratorView';
+import AnalyticsView from '@/components/datasphere/AnalyticsView';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
@@ -89,8 +93,16 @@ function AppContent() {
         return <TemplatesView />;
       case 'comparison':
         return <ComparisonView />;
+      case 'prompt-generator':
+        return <PromptGeneratorView />;
+      case 'saas-generator':
+        return <SaasGeneratorView />;
+      case 'organizations':
+        return <OrganizationsView />;
       case 'billing':
         return <BillingView />;
+      case 'analytics':
+        return <AnalyticsView />;
       case 'admin':
         return <AdminView />;
       case 'settings':

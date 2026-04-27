@@ -28,6 +28,7 @@ import {
   Pencil,
   Clock,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -175,6 +176,8 @@ export default function ChatView() {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageGenerating, setImageGenerating] = useState(false);
+  const [quotaWarning, setQuotaWarning] = useState<{ error: string; quotaType: string } | null>(null);
+  const [lowQuotaTokens, setLowQuotaTokens] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -292,6 +295,40 @@ export default function ChatView() {
     return ['Bonjour, comment peux-tu m\'aider ?', 'Quelles sont tes capacités ?', 'Aide-moi avec un projet', 'Analyse des données pour moi'];
   };
 
+  // Pre-send quota check
+  const checkQuotaBeforeSend = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/usage', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const tokensLimit = data.usage?.tokens?.limit;
+        const tokensUsed = data.usage?.tokens?.used;
+        if (tokensLimit !== -1 && tokensLimit !== undefined && tokensUsed !== undefined) {
+          const remaining = tokensLimit - tokensUsed;
+          if (remaining < 1000) {
+            setLowQuotaTokens(remaining);
+          } else {
+            setLowQuotaTokens(null);
+          }
+        } else {
+          setLowQuotaTokens(null);
+        }
+      }
+    } catch (_e) {
+      // silent
+    }
+  };
+
+  // Fetch quota on mount and when conversations change
+  useEffect(() => {
+    if (token) {
+      checkQuotaBeforeSend();
+    }
+  }, [token, activeConversationId]);
+
   // Send message with SSE streaming
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
@@ -301,6 +338,7 @@ export default function ChatView() {
     setIsStreaming(true);
     setStreamingContent('');
     setIsWaitingFirstToken(true);
+    setQuotaWarning(null);
 
     // Add user message immediately
     const userMsg: StreamMessage = {
@@ -328,6 +366,23 @@ export default function ChatView() {
         }),
         signal: controller.signal,
       });
+
+      // Handle 403 quota exceeded
+      if (res.status === 403) {
+        let errorData: any = {};
+        try {
+          errorData = await res.json();
+        } catch (_e) {
+          errorData = { error: 'Accès refusé' };
+        }
+        if (errorData.quotaExceeded) {
+          setQuotaWarning({ error: errorData.error || 'Quota dépassé', quotaType: errorData.quotaType || 'tokens' });
+          // Remove the user message we just added since the request failed
+          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+          return;
+        }
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -419,6 +474,20 @@ export default function ChatView() {
               conversationId: activeConversationId || undefined,
             }),
           });
+          // Handle 403 quota exceeded on fallback too
+          if (fallbackRes.status === 403) {
+            let errorData: any = {};
+            try {
+              errorData = await fallbackRes.json();
+            } catch (_e) {
+              errorData = { error: 'Accès refusé' };
+            }
+            if (errorData.quotaExceeded) {
+              setQuotaWarning({ error: errorData.error || 'Quota dépassé', quotaType: errorData.quotaType || 'tokens' });
+              setStreamingContent('');
+              return;
+            }
+          }
           const fallbackData = await fallbackRes.json();
           if (fallbackData.response) {
             if (fallbackData.conversationId && !activeConversationId) {
@@ -745,6 +814,49 @@ export default function ChatView() {
           </div>
         </div>
 
+        {/* Quota exceeded warning banner */}
+        <AnimatePresence>
+          {quotaWarning && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mx-3 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {quotaWarning.quotaType === 'conversations'
+                      ? 'Limite de conversations atteinte'
+                      : 'Quota de tokens dépassé'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                    {quotaWarning.error}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={() => setCurrentView('billing')}
+                  >
+                    Voir les offres
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-amber-500 hover:text-amber-700"
+                    onClick={() => setQuotaWarning(null)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Messages */}
         <div
           ref={scrollRef}
@@ -967,6 +1079,13 @@ export default function ChatView() {
                 </Button>
               )}
             </div>
+            {/* Low quota warning below input */}
+            {lowQuotaTokens !== null && lowQuotaTokens >= 0 && !isStreaming && (
+              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-[10px] mt-1.5">
+                <AlertTriangle className="h-3 w-3" />
+                <span>Attention : quota de tokens faible ({lowQuotaTokens.toLocaleString('fr-FR')} restants)</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

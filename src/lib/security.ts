@@ -5,6 +5,16 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60_000; // 1 minute
 const RATE_LIMIT_MAX = 30; // 30 requests per minute
 
+// Plan-based rate limiting (in-memory, per-userId)
+const planRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const PLAN_RATE_LIMIT_WINDOW = 60_000; // 1 minute
+
+const PLAN_RATE_LIMITS: Record<string, number> = {
+  free: 15, // 15 messages/minute
+  pro: 60, // 60 messages/minute
+  enterprise: 120, // 120 messages/minute
+};
+
 export function checkRateLimit(
   req: NextRequest,
   limit: number = RATE_LIMIT_MAX
@@ -27,6 +37,32 @@ export function checkRateLimit(
 
   entry.count++;
   return true;
+}
+
+/**
+ * Check plan-based rate limit for a user.
+ * Returns { allowed: boolean, retryAfter?: number (seconds) }
+ */
+export function checkPlanRateLimit(
+  userId: string,
+  planName: string
+): { allowed: boolean; retryAfter?: number } {
+  const limit = PLAN_RATE_LIMITS[planName] || PLAN_RATE_LIMITS.free;
+  const now = Date.now();
+  const entry = planRateLimitMap.get(userId);
+
+  if (!entry || now > entry.resetTime) {
+    planRateLimitMap.set(userId, { count: 1, resetTime: now + PLAN_RATE_LIMIT_WINDOW });
+    return { allowed: true };
+  }
+
+  if (entry.count >= limit) {
+    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  entry.count++;
+  return { allowed: true };
 }
 
 // Input sanitization
@@ -107,6 +143,11 @@ export function cleanupRateLimits(): void {
   for (const [ip, entry] of rateLimitMap.entries()) {
     if (now > entry.resetTime) {
       rateLimitMap.delete(ip);
+    }
+  }
+  for (const [userId, entry] of planRateLimitMap.entries()) {
+    if (now > entry.resetTime) {
+      planRateLimitMap.delete(userId);
     }
   }
 }

@@ -302,6 +302,33 @@ export default function AdminView() {
     }
   };
 
+  const handleExport = async (type: string) => {
+    try {
+      const res = await fetch(`/api/admin/export?type=${type}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur lors de l\'export');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="?(.+)"?/);
+      a.download = match ? match[1] : `datasphere-export-${type}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Export "${type}" téléchargé`);
+    } catch (_e) {
+      toast.error('Erreur lors du téléchargement');
+    }
+  };
+
   // Tab change handler
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -552,6 +579,41 @@ export default function AdminView() {
                           <span className="text-sm font-semibold">{r.count}</span>
                         </div>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Export Data */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2"><Download className="h-4 w-4 text-violet-500" /> Exporter les données</CardTitle>
+                    <CardDescription className="text-xs">Téléchargez les données de la plateforme au format JSON</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        { type: 'users', label: 'Utilisateurs', icon: Users, color: 'from-violet-500 to-purple-600' },
+                        { type: 'agents', label: 'Agents', icon: Bot, color: 'from-emerald-500 to-teal-600' },
+                        { type: 'conversations', label: 'Conversations', icon: MessageSquare, color: 'from-amber-500 to-orange-600' },
+                        { type: 'usage', label: 'Usage', icon: Zap, color: 'from-orange-500 to-red-600' },
+                        { type: 'audit', label: 'Audit', icon: ScrollText, color: 'from-cyan-500 to-blue-600' },
+                      ] as const).map((exp) => {
+                        const Icon = exp.icon;
+                        return (
+                          <Button
+                            key={exp.type}
+                            variant="outline"
+                            size="sm"
+                            className="h-9 gap-2 text-xs"
+                            onClick={() => handleExport(exp.type)}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {exp.label}
+                          </Button>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

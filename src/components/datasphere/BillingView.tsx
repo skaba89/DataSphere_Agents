@@ -19,6 +19,7 @@ import {
   MessageSquare,
   FileUp,
   Sparkles,
+  Inbox,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,17 @@ interface BillingData {
   currentPlan: string;
   subscription: SubscriptionInfo | null;
   usage: UsageInfo;
+}
+
+interface InvoiceInfo {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  stripeInvoiceId: string | null;
+  stripeInvoiceUrl: string | null;
+  paidAt: string | null;
 }
 
 const planIcons: Record<string, React.ElementType> = {
@@ -126,6 +138,8 @@ export default function BillingView() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [invoices, setInvoices] = useState<InvoiceInfo[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
 
   useEffect(() => {
     const fetchBilling = async () => {
@@ -144,6 +158,28 @@ export default function BillingView() {
       }
     };
     fetchBilling();
+  }, [token]);
+
+  // Fetch invoices
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      if (!token) return;
+      setInvoicesLoading(true);
+      try {
+        const res = await fetch('/api/billing/invoices', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setInvoices(result.invoices || []);
+        }
+      } catch (_e) {
+        // silent
+      } finally {
+        setInvoicesLoading(false);
+      }
+    };
+    fetchInvoices();
   }, [token]);
 
   const handleSubscribe = async (planName: string) => {
@@ -516,31 +552,102 @@ export default function BillingView() {
               <CardDescription>Vos factures et reçus de paiement</CardDescription>
             </CardHeader>
             <CardContent>
-              {!data.subscription || data.subscription.planName === 'free' ? (
+              {invoicesLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : invoices.length === 0 ? (
                 <div className="text-center py-12">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground/20 mb-4" />
+                  <Inbox className="h-12 w-12 mx-auto text-muted-foreground/20 mb-4" />
                   <p className="text-muted-foreground">Aucune facture disponible</p>
                   <p className="text-sm text-muted-foreground/60 mt-1">
                     Les factures apparaîtront ici après votre premier paiement
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => handleSubscribe('pro')}
-                  >
-                    Passer au plan Pro
-                  </Button>
+                  {(!data.subscription || data.subscription.planName === 'free') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => handleSubscribe('pro')}
+                    >
+                      Passer au plan Pro
+                    </Button>
+                  )}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    Gérez vos factures et méthodes de paiement via le portail Stripe
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-4" onClick={handlePortal}>
-                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                    Ouvrir le portail de facturation
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-3 font-medium text-muted-foreground">Date</th>
+                        <th className="pb-3 font-medium text-muted-foreground">Montant</th>
+                        <th className="pb-3 font-medium text-muted-foreground">Statut</th>
+                        <th className="pb-3 font-medium text-muted-foreground text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr key={invoice.id} className="border-b last:border-0">
+                          <td className="py-3">
+                            {new Date(invoice.createdAt).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="py-3 font-medium">
+                            {new Intl.NumberFormat('fr-FR', {
+                              style: 'currency',
+                              currency: (invoice.currency || 'eur').toUpperCase(),
+                              minimumFractionDigits: 2,
+                            }).format(invoice.amount)}
+                          </td>
+                          <td className="py-3">
+                            <Badge
+                              variant="outline"
+                              className={
+                                invoice.status === 'paid'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800'
+                                  : invoice.status === 'pending'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800'
+                                  : invoice.status === 'failed'
+                                  ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800'
+                                  : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950/50 dark:text-gray-400 dark:border-gray-800'
+                              }
+                            >
+                              {invoice.status === 'paid'
+                                ? 'Payée'
+                                : invoice.status === 'pending'
+                                ? 'En attente'
+                                : invoice.status === 'failed'
+                                ? 'Échouée'
+                                : 'Remboursée'}
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-right">
+                            {invoice.stripeInvoiceUrl && (
+                              <a
+                                href={invoice.stripeInvoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Voir sur Stripe
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {invoices.length > 0 && data.subscription && data.subscription.planName !== 'free' && (
+                <div className="mt-4 pt-4 border-t flex justify-end">
+                  <Button variant="outline" size="sm" onClick={handlePortal} disabled={checkoutLoading === 'portal'}>
+                    <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+                    Gérer sur Stripe
                   </Button>
                 </div>
               )}
