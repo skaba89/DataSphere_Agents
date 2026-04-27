@@ -26,6 +26,8 @@ import {
   Building2,
   Wand2,
   Rocket,
+  Webhook,
+  GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -57,11 +59,13 @@ const navItems = [
   { id: 'comparison', label: 'Comparaison IA', icon: GitCompare, badge: 0 },
   { id: 'prompt-generator', label: 'Prompt Generator', icon: Wand2, badge: 0 },
   { id: 'webbuilder', label: 'Web Builder', icon: Globe, badge: 0 },
+  { id: 'workflows', label: 'Workflows', icon: GitBranch, badge: 0 },
   { id: 'saas-generator', label: 'SaaS Generator', icon: Rocket, badge: 0 },
   { id: 'documents', label: 'Documents', icon: FileText, badge: 0 },
   { id: 'organizations', label: 'Organisations', icon: Building2, badge: 0 },
   { id: 'billing', label: 'Abonnement', icon: Crown, badge: 0 },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, badge: 0 },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook, badge: 0 },
   { id: 'payments', label: 'Paiements', icon: CreditCard, badge: 0 },
   { id: 'admin', label: 'Administration', icon: Shield, badge: 0, adminOnly: true },
   { id: 'settings', label: 'Paramètres', icon: Settings, badge: 0 },

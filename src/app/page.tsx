@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { registerLogoutCallback } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -23,9 +23,16 @@ import OrganizationsView from '@/components/datasphere/OrganizationsView';
 import PromptGeneratorView from '@/components/datasphere/PromptGeneratorView';
 import SaasGeneratorView from '@/components/datasphere/SaasGeneratorView';
 import AnalyticsView from '@/components/datasphere/AnalyticsView';
+import WorkflowsView from '@/components/datasphere/WorkflowsView';
+import WebhooksView from '@/components/datasphere/WebhooksView';
+import SearchDialog from '@/components/datasphere/SearchDialog';
+import OnboardingWizard from '@/components/datasphere/OnboardingWizard';
+import KeyboardShortcuts from '@/components/datasphere/KeyboardShortcuts';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Register the global logout callback for apiFetch
   useEffect(() => {
@@ -69,6 +76,18 @@ function AppContent() {
     fetchAgents();
   }, [token, setAgents, logout]);
 
+  // Check onboarding status when user logs in
+  useEffect(() => {
+    if (user && typeof window !== 'undefined') {
+      const onboardingDone = localStorage.getItem('ds_onboarding_complete');
+      if (!onboardingDone) {
+        // Small delay to let the UI settle before showing onboarding
+        const timer = setTimeout(() => setShowOnboarding(true), 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [user]);
+
   if (!user) {
     return <LoginView />;
   }
@@ -95,6 +114,8 @@ function AppContent() {
         return <ComparisonView />;
       case 'prompt-generator':
         return <PromptGeneratorView />;
+      case 'workflows':
+        return <WorkflowsView />;
       case 'saas-generator':
         return <SaasGeneratorView />;
       case 'organizations':
@@ -103,6 +124,8 @@ function AppContent() {
         return <BillingView />;
       case 'analytics':
         return <AnalyticsView />;
+      case 'webhooks':
+        return <WebhooksView />;
       case 'admin':
         return <AdminView />;
       case 'settings':
@@ -113,24 +136,34 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <main className="flex-1 overflow-auto pb-14 lg:pb-0">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="min-h-full"
-          >
-            {renderView()}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-      <MobileNav />
-    </div>
+    <>
+      {showOnboarding && (
+        <OnboardingWizard
+          onComplete={() => setShowOnboarding(false)}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar />
+        <main className="flex-1 overflow-auto pb-14 lg:pb-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="min-h-full"
+            >
+              {renderView()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        <MobileNav />
+      </div>
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <KeyboardShortcuts onOpenSearch={() => setSearchOpen(true)} />
+    </>
   );
 }
 

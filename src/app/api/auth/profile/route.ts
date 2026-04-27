@@ -14,11 +14,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     }
 
-    const { name } = await req.json();
+    const body = await req.json();
+    const { name, onboardingCompleted } = body;
+
+    const data: Record<string, unknown> = {};
+    if (name) data.name = name;
+    if (typeof onboardingCompleted === "boolean") data.onboardingCompleted = onboardingCompleted;
 
     const user = await db.user.update({
       where: { id: payload.userId },
-      data: { ...(name && { name }) },
+      data,
     });
 
     return NextResponse.json({

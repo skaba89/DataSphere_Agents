@@ -64,6 +64,45 @@ export async function signToken(payload: { userId: string; email: string; role: 
     .sign(secret);
 }
 
+/**
+ * Sign a short-lived temp token for 2FA verification (5 minutes)
+ */
+export async function signTempToken(payload: { userId: string; email: string; twoFactorPending: true }) {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .setIssuer("datasphere-agents-2fa")
+    .setAudience("datasphere-2fa-verify")
+    .sign(secret);
+}
+
+/**
+ * Verify a temp token for 2FA verification
+ */
+export async function verifyTempToken(token: string) {
+  const tokenHash = createHash("sha256").update(token).digest("hex").slice(0, 16);
+  if (!checkRateLimit(tokenHash)) {
+    return null;
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, secret, {
+      issuer: "datasphere-agents-2fa",
+      audience: "datasphere-2fa-verify",
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return null;
+    }
+
+    return payload as { userId: string; email: string; twoFactorPending: boolean };
+  } catch (_e) {
+    return null;
+  }
+}
+
 export async function verifyToken(token: string) {
   // Rate limit by token hash
   const tokenHash = createHash("sha256").update(token).digest("hex").slice(0, 16);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { signToken } from "@/lib/auth";
+import { signToken, signTempToken } from "@/lib/auth";
 import {
   checkRateLimit,
   isValidEmail,
@@ -183,6 +183,24 @@ export async function POST(request: NextRequest) {
         { error: "Votre compte a été suspendu. Contactez l'administrateur." },
         { status: 403 }
       );
+    }
+
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
+      // Generate a short-lived temp token for 2FA verification
+      const tempToken = await signTempToken({
+        userId: user.id,
+        email: user.email,
+        twoFactorPending: true,
+      });
+
+      // Return temp token instead of full auth response
+      // The client must verify 2FA code within 5 minutes
+      return NextResponse.json({
+        requiresTwoFactor: true,
+        tempToken,
+        userId: user.id,
+      });
     }
 
     // Update last login time

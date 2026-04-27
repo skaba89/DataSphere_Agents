@@ -4,6 +4,7 @@ import { verifyToken } from "@/lib/auth";
 import { resolveProvider, streamChatCompletion, PROVIDERS, ProviderId } from "@/lib/ai-providers";
 import { checkRateLimit, sanitizeForLLM, isValidAgentId, checkPlanRateLimit } from "@/lib/security";
 import { checkTokenQuota, checkConversationQuota, recordUsage, getUserPlan } from "@/lib/saas/quotas";
+import { processToolCalls } from "@/lib/agent-tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -291,6 +292,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Fetch agent tools for function calling
+    const agentTools = await db.agentTool.findMany({
+      where: { agentId, isActive: true },
+    });
+
     // Check conversation quota if creating a new conversation
     if (!conversationId) {
       const convQuota = await checkConversationQuota(payload.userId);
@@ -401,7 +407,47 @@ export async function POST(req: NextRequest) {
           // Resolve the AI provider
           const providerInfo = await resolveProvider(payload.userId, requestedProvider);
 
-          if (providerInfo) {
+          // If agent has tools, use function calling (non-streaming first, then stream the result)
+          if (agentTools.length > 0 && providerInfo) {
+            try {
+              const { provider, apiKey, model } = providerInfo;
+              const toolsForAgent = agentTools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              }));
+
+              const toolResult = await processToolCalls(
+                chatHistory,
+                toolsForAgent,
+                fullSystemPrompt,
+                provider,
+                apiKey,
+                model
+              );
+
+              fullResponse = toolResult.response;
+
+              // Simulate streaming by sending the response word by word
+              if (fullResponse) {
+                const words = fullResponse.split(/(?<=\s)/);
+                for (const word of words) {
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: "token", content: word })}\n\n`
+                    )
+                  );
+                  await new Promise((r) => setTimeout(r, 15));
+                }
+              }
+            } catch (toolErr: any) {
+              console.error("Tool calling failed, falling back to streaming:", toolErr?.message);
+              // Fall through to normal streaming
+              fullResponse = "";
+            }
+          }
+
+          if (providerInfo && !fullResponse) {
             // Use multi-provider AI
             const { provider, apiKey, model } = providerInfo;
             const providerName = PROVIDERS[provider]?.name || provider;
@@ -577,6 +623,24 @@ export async function POST(req: NextRequest) {
               content: fullResponse,
             },
           });
+
+          // Auto-summarize if conversation has >= 6 messages and no existing summary
+          // Do this asynchronously — don't block the response
+          try {
+            const msgCount = await db.chatMessage.count({
+              where: { conversationId: convId },
+            });
+            const conv = await db.conversation.findUnique({
+              where: { id: convId },
+              select: { summary: true },
+            });
+            if (msgCount >= 6 && conv && !conv.summary) {
+              const { summarizeConversation } = await import("@/lib/summarize");
+              summarizeConversation(convId).catch(console.error);
+            }
+          } catch (_summarizeErr) {
+            // Non-critical — ignore
+          }
 
           // Record usage event
           await recordUsage({

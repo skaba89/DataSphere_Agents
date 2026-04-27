@@ -29,6 +29,7 @@ import {
   Clock,
   Sparkles,
   AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -177,6 +178,7 @@ export default function ChatView() {
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageGenerating, setImageGenerating] = useState(false);
   const [quotaWarning, setQuotaWarning] = useState<{ error: string; quotaType: string } | null>(null);
+  const [summarizeLoading, setSummarizeLoading] = useState(false);
   const [lowQuotaTokens, setLowQuotaTokens] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -555,6 +557,33 @@ export default function ChatView() {
     }
   };
 
+  // Manually trigger summarization for the current conversation
+  const handleSummarize = async () => {
+    if (!activeConversationId || !token || summarizeLoading) return;
+    setSummarizeLoading(true);
+    try {
+      const res = await fetch('/api/conversations/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ conversationId: activeConversationId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.summary) {
+        toast.success('Résumé généré avec succès');
+        fetchConversations();
+      } else {
+        toast.error(data.error || 'Erreur lors de la génération du résumé');
+      }
+    } catch (_e) {
+      toast.error('Erreur lors de la génération du résumé');
+    } finally {
+      setSummarizeLoading(false);
+    }
+  };
+
   // Auto-resize textarea
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -717,22 +746,29 @@ export default function ChatView() {
               <div
                 key={conv.id}
                 onClick={() => selectConversation(conv.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group flex items-center gap-2 cursor-pointer ${
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group cursor-pointer ${
                   activeConversationId === conv.id
                     ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
                     : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <span className="truncate flex-1">{conv.title}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteConversation(conv.id);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="truncate flex-1">{conv.title}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteConversation(conv.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity flex-shrink-0"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                {conv.summary && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate leading-tight">
+                    {conv.summary}
+                  </p>
+                )}
               </div>
             ))
           )}
@@ -793,6 +829,23 @@ export default function ChatView() {
             <p className="text-[11px] text-muted-foreground truncate">{selectedAgent?.description}</p>
           </div>
           <div className="flex items-center gap-1">
+            {activeConversationId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden md:flex text-xs text-muted-foreground"
+                onClick={handleSummarize}
+                disabled={summarizeLoading}
+                title="Générer un résumé de la conversation"
+              >
+                {summarizeLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                )}
+                Résumer
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

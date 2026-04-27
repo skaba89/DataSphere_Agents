@@ -18,7 +18,11 @@ model User {
   password          String
   role              String          @default("user") // "user", "admin", "super_admin"
   avatar            String?
+  twoFactorSecret    String?         // TOTP secret (encrypted)
+  twoFactorEnabled   Boolean         @default(false)
+  twoFactorBackupCodes String?       // JSON array of hashed backup codes
   isActive          Boolean         @default(true) // Account active/suspended
+  onboardingCompleted Boolean       @default(false) // Whether user completed onboarding wizard
   lastLoginAt       DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -36,6 +40,8 @@ model User {
   platformApiKeys   PlatformApiKey[]
   agentRatings      AgentRating[]
   auditLogs         AuditLog[]
+  webhooks          Webhook[]
+  workflows         Workflow[]
 }
 
 // ============================================
@@ -195,6 +201,7 @@ model Agent {
   updatedAt     DateTime      @updatedAt
   conversations Conversation[]
   ratings       AgentRating[]
+  tools         AgentTool[]
 }
 
 model Conversation {
@@ -352,4 +359,93 @@ model ComparisonResult {
   results         String   // JSON: [{provider, model, response, tokensUsed, responseTime, rating}]
   bestProvider    String?  // Auto-determined best result
   createdAt       DateTime @default(now())
+}
+
+// ============================================
+// WEBHOOKS (External integrations)
+// ============================================
+
+model Webhook {
+  id              String   @id @default(cuid())
+  userId          String
+  url             String
+  secret          String   // HMAC secret for signing payloads
+  events          String   // JSON array of event types
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastTriggeredAt DateTime?
+  failureCount    Int      @default(0)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries      WebhookDelivery[]
+
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id          String   @id @default(cuid())
+  webhookId   String
+  event       String
+  payload     String   // JSON payload
+  statusCode  Int?
+  response    String?
+  success     Boolean
+  createdAt   DateTime @default(now())
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt])
+}
+
+// ============================================
+// WORKFLOWS & ORCHESTRATION
+// ============================================
+
+model Workflow {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  steps       String   // JSON array of step definitions
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  executions  WorkflowExecution[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WorkflowExecution {
+  id          String   @id @default(cuid())
+  workflowId  String
+  status      String   @default("pending") // pending, running, completed, failed
+  currentStep Int      @default(0)
+  input       String?  // JSON input data
+  output      String?  // JSON output data
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}
+
+// ============================================
+// AGENT TOOLS / FUNCTION CALLING
+// ============================================
+
+model AgentTool {
+  id          String   @id @default(cuid())
+  agentId     String
+  name        String   // e.g. "web_search", "calculator", "code_executor"
+  description String   // Description for the LLM
+  parameters  String   // JSON schema of parameters
+  type        String   @default("builtin") // builtin, custom
+  isActive    Boolean  @default(true)
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, name])
+  @@index([agentId])
 }

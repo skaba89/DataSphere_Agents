@@ -25,7 +25,17 @@ export async function GET(request: Request) {
     const conversations = await db.conversation.findMany({
       where,
       orderBy: { updatedAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        agentId: true,
+        title: true,
+        isPinned: true,
+        isArchived: true,
+        tags: true,
+        summary: true,
+        createdAt: true,
+        updatedAt: true,
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
