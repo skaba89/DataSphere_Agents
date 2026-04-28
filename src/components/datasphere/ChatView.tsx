@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { useRealtime } from '@/hooks/use-realtime';
 import {
   Send,
   Square,
@@ -30,6 +31,8 @@ import {
   Sparkles,
   AlertTriangle,
   FileText,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -180,6 +183,25 @@ export default function ChatView() {
   const [quotaWarning, setQuotaWarning] = useState<{ error: string; quotaType: string } | null>(null);
   const [summarizeLoading, setSummarizeLoading] = useState(false);
   const [lowQuotaTokens, setLowQuotaTokens] = useState<number | null>(null);
+  const [realtimeTyping, setRealtimeTyping] = useState(false);
+
+  // Real-time events for live updates
+  const { lastEvent: realtimeEvent, connected: realtimeConnected } = useRealtime();
+
+  // Handle realtime events
+  useEffect(() => {
+    if (!realtimeEvent) return;
+    if (realtimeEvent.type === 'typing' && realtimeEvent.data.agentId === selectedAgentId) {
+      setRealtimeTyping(realtimeEvent.data.isTyping);
+      if (realtimeEvent.data.isTyping) {
+        const timer = setTimeout(() => setRealtimeTyping(false), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+    if (realtimeEvent.type === 'notification') {
+      toast.info(realtimeEvent.data.title || realtimeEvent.data.message);
+    }
+  }, [realtimeEvent, selectedAgentId]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -792,14 +814,14 @@ export default function ChatView() {
   return (
     <div className="flex h-screen">
       {/* Sidebar - Conversations (desktop) */}
-      <div className="w-64 border-r bg-card/50 hidden md:flex flex-col">
+      <div className="w-64 border-r bg-white/40 dark:bg-gray-950/60 backdrop-blur-xl border-white/10 dark:border-gray-800/30 hidden md:flex flex-col">
         {conversationList}
       </div>
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white/60 dark:bg-gray-900/60 backdrop-blur-xl border-white/10 dark:border-gray-800/30">
           {/* Mobile conversation drawer */}
           <Sheet>
             <SheetTrigger asChild>
@@ -829,6 +851,14 @@ export default function ChatView() {
             <p className="text-[11px] text-muted-foreground truncate">{selectedAgent?.description}</p>
           </div>
           <div className="flex items-center gap-1">
+            {/* Realtime connection indicator */}
+            <div className="hidden md:flex items-center gap-1 mr-1">
+              {realtimeConnected ? (
+                <Wifi className="h-3 w-3 text-emerald-500" />
+              ) : (
+                <WifiOff className="h-3 w-3 text-muted-foreground" />
+              )}
+            </div>
             {activeConversationId && (
               <Button
                 variant="ghost"
@@ -995,7 +1025,7 @@ export default function ChatView() {
               ))}
 
               {/* Waiting for first token indicator */}
-              {isWaitingFirstToken && !streamingContent && (
+              {(isWaitingFirstToken && !streamingContent) || realtimeTyping ? (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1010,7 +1040,7 @@ export default function ChatView() {
                     <TypingIndicator />
                   </div>
                 </motion.div>
-              )}
+              ) : null}
 
               {/* Streaming message */}
               {streamingContent && (
@@ -1055,7 +1085,7 @@ export default function ChatView() {
         </AnimatePresence>
 
         {/* Input bar */}
-        <div className="border-t p-3 bg-card/50 backdrop-blur-sm pb-20 md:pb-3">
+        <div className="border-t p-3 bg-white/60 dark:bg-gray-900/60 backdrop-blur-xl border-white/10 dark:border-gray-800/30 pb-20 md:pb-3">
           <div className="max-w-3xl mx-auto">
             {/* Suggested prompts (shown when chat is active) */}
             {messages.length > 0 && !isStreaming && !streamingContent && (

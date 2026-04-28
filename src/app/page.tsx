@@ -25,14 +25,21 @@ import SaasGeneratorView from '@/components/datasphere/SaasGeneratorView';
 import AnalyticsView from '@/components/datasphere/AnalyticsView';
 import WorkflowsView from '@/components/datasphere/WorkflowsView';
 import WebhooksView from '@/components/datasphere/WebhooksView';
+import ProspectionView from '@/components/datasphere/ProspectionView';
+import AgentIntelligenceView from '@/components/datasphere/AgentIntelligenceView';
 import SearchDialog from '@/components/datasphere/SearchDialog';
 import OnboardingWizard from '@/components/datasphere/OnboardingWizard';
 import KeyboardShortcuts from '@/components/datasphere/KeyboardShortcuts';
+import InstallPrompt from '@/components/datasphere/InstallPrompt';
+import { useRealtime } from '@/hooks/use-realtime';
 
 function AppContent() {
   const { user, currentView, setSidebarOpen, token, setAgents, logout } = useAppStore();
   const [searchOpen, setSearchOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Real-time connection for live updates (hook maintains SSE connection)
+  useRealtime();
 
   // Register the global logout callback for apiFetch
   useEffect(() => {
@@ -116,6 +123,8 @@ function AppContent() {
         return <PromptGeneratorView />;
       case 'workflows':
         return <WorkflowsView />;
+      case 'agent-intelligence':
+        return <AgentIntelligenceView />;
       case 'saas-generator':
         return <SaasGeneratorView />;
       case 'organizations':
@@ -126,6 +135,8 @@ function AppContent() {
         return <AnalyticsView />;
       case 'webhooks':
         return <WebhooksView />;
+      case 'prospection':
+        return <ProspectionView />;
       case 'admin':
         return <AdminView />;
       case 'settings':
@@ -143,6 +154,7 @@ function AppContent() {
           onSkip={() => setShowOnboarding(false)}
         />
       )}
+      <InstallPrompt />
       <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar />
         <main className="flex-1 overflow-auto pb-14 lg:pb-0">

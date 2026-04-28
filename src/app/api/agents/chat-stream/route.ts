@@ -375,6 +375,17 @@ export async function POST(req: NextRequest) {
       fullSystemPrompt = fullSystemPrompt + "\n\n" + typePrompt + TOOL_SYSTEM_SUFFIX;
     }
 
+    // Inject agent memory
+    try {
+      const { buildMemoryContext } = await import("@/lib/agent-memory");
+      const memoryContext = await buildMemoryContext(agentId, payload.userId, message);
+      if (memoryContext) {
+        fullSystemPrompt = fullSystemPrompt + "\n\n" + memoryContext;
+      }
+    } catch (_memErr) {
+      // Memory injection is non-critical — continue without it
+    }
+
     const previousMessages = await db.chatMessage.findMany({
       where: { conversationId: convId },
       orderBy: { createdAt: "asc" },
@@ -650,6 +661,19 @@ export async function POST(req: NextRequest) {
             provider: providerInfo?.provider || 'zai',
             agentId: agentId,
           });
+
+          // Learn from interaction (async, non-blocking)
+          try {
+            const { learnFromInteraction } = await import("@/lib/agent-memory");
+            learnFromInteraction({
+              agentId,
+              userId: payload.userId,
+              userMessage: message,
+              assistantResponse: fullResponse,
+            }).catch(console.error);
+          } catch (_learnErr) {
+            // Learning is non-critical — ignore
+          }
 
           // Send done event
           try {

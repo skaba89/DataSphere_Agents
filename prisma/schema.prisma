@@ -42,6 +42,11 @@ model User {
   auditLogs         AuditLog[]
   webhooks          Webhook[]
   workflows         Workflow[]
+  prospects         Prospect[]
+  marketInsights    MarketInsight[]
+  customerHealths   CustomerHealth[]
+  agentMemories     AgentMemory[]
+  learningEvents    LearningEvent[]
 }
 
 // ============================================
@@ -202,6 +207,8 @@ model Agent {
   conversations Conversation[]
   ratings       AgentRating[]
   tools         AgentTool[]
+  memories      AgentMemory[]
+  promptVersions PromptVersion[]
 }
 
 model Conversation {
@@ -447,5 +454,138 @@ model AgentTool {
   agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, name])
+  @@index([agentId])
+}
+
+// ============================================
+// PROSPECTION & MARKET INTELLIGENCE
+// ============================================
+
+model Prospect {
+  id          String   @id @default(cuid())
+  userId      String
+  company     String
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  industry    String?
+  size        String?   // startup, small, medium, large, enterprise
+  status      String    @default("new") // new, contacted, qualified, proposal, negotiation, won, lost
+  score       Float     @default(0) // Lead score 0-100
+  source      String?   // manual, web_search, referral, import
+  notes       String?
+  tags        String?   // JSON array
+  lastContactAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities  ProspectActivity[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([score])
+}
+
+model ProspectActivity {
+  id          String   @id @default(cuid())
+  prospectId  String
+  type        String   // call, email, meeting, note, status_change, score_change
+  content     String
+  createdAt   DateTime @default(now())
+  prospect    Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([prospectId])
+}
+
+model MarketInsight {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // trend, competitor, opportunity, alert
+  title       String
+  summary     String
+  data        String?  // JSON detailed data
+  source      String?  // web_search, ai_analysis, user_input
+  relevance   Float    @default(0.5) // 0-1
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+}
+
+model CustomerHealth {
+  id              String   @id @default(cuid())
+  userId          String
+  customerEmail   String
+  healthScore     Float    @default(50) // 0-100
+  churnRisk       String   @default("low") // low, medium, high, critical
+  engagementLevel String   @default("moderate") // dormant, low, moderate, high, power
+  lastActivityAt  DateTime?
+  metrics         String?  // JSON: login frequency, feature usage, support tickets
+  recommendations String?  // JSON: AI-generated recommendations
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, customerEmail])
+  @@index([userId])
+  @@index([churnRisk])
+}
+
+// ============================================
+// AGENT MEMORY & SELF-LEARNING
+// ============================================
+
+model AgentMemory {
+  id           String    @id @default(cuid())
+  agentId      String
+  userId       String
+  category     String    // fact, preference, pattern, correction, context
+  key          String    // Short identifier
+  content      String    // The memory content
+  confidence   Float     @default(1.0) // 0.0-1.0 confidence score
+  source       String    @default("interaction") // interaction, feedback, system, learned
+  accessCount  Int       @default(0)
+  lastAccessed DateTime?
+  expiresAt    DateTime? // Optional expiration for temporary memories
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  agent        Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, userId, key])
+  @@index([agentId, userId])
+  @@index([category])
+}
+
+model LearningEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  agentId   String
+  eventType String   // prompt_adjusted, preference_learned, correction_applied, pattern_detected, feedback_received
+  data      String   // JSON event data
+  impact    Float    @default(0) // -1.0 to 1.0 impact score
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, agentId])
+  @@index([createdAt])
+}
+
+model PromptVersion {
+  id           String   @id @default(cuid())
+  agentId      String
+  version      Int
+  systemPrompt String
+  performance  Float?   // 0-100 performance score based on user feedback
+  messageCount Int      @default(0)
+  avgRating    Float?   // Average user rating for this version
+  createdAt    DateTime @default(now())
+  isActive     Boolean  @default(true)
+  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, version])
   @@index([agentId])
 }

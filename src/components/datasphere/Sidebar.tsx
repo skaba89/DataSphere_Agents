@@ -28,6 +28,8 @@ import {
   Rocket,
   Webhook,
   GitBranch,
+  Target,
+  Brain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -60,9 +62,11 @@ const navItems = [
   { id: 'prompt-generator', label: 'Prompt Generator', icon: Wand2, badge: 0 },
   { id: 'webbuilder', label: 'Web Builder', icon: Globe, badge: 0 },
   { id: 'workflows', label: 'Workflows', icon: GitBranch, badge: 0 },
+  { id: 'agent-intelligence', label: 'Intelligence IA', icon: Brain, badge: 0 },
   { id: 'saas-generator', label: 'SaaS Generator', icon: Rocket, badge: 0 },
   { id: 'documents', label: 'Documents', icon: FileText, badge: 0 },
   { id: 'organizations', label: 'Organisations', icon: Building2, badge: 0 },
+  { id: 'prospection', label: 'Prospection', icon: Target, badge: 0 },
   { id: 'billing', label: 'Abonnement', icon: Crown, badge: 0 },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, badge: 0 },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook, badge: 0 },
@@ -165,7 +169,7 @@ export default function Sidebar() {
         initial={false}
         animate={{ width: sidebarOpen ? 256 : 72 }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className={`fixed lg:relative z-40 h-screen bg-card border-r flex flex-col overflow-hidden ${
+        className={`fixed lg:relative z-40 h-screen bg-white/40 dark:bg-gray-950/60 backdrop-blur-2xl border-r border-white/10 dark:border-gray-800/30 flex flex-col overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >

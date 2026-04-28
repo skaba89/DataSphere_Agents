@@ -30,6 +30,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import GlassCard from '@/components/datasphere/GlassCard';
+import AnimatedCounter from '@/components/datasphere/AnimatedCounter';
+import PremiumBadge from '@/components/datasphere/PremiumBadge';
 import {
   AreaChart,
   Area,
@@ -184,39 +187,47 @@ export default function DashboardView() {
   const stats = [
     {
       title: 'Revenu Total',
-      value: `${(safeData.totalRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      value: safeData.totalRevenue || 0,
+      format: 'currency' as const,
       change: '+12.5%',
       up: true,
       icon: DollarSign,
       gradient: 'from-emerald-500 to-teal-600',
       bg: 'bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40',
+      badge: { text: 'Live', variant: 'live' as const },
     },
     {
       title: "Aujourd'hui",
-      value: `${(safeData.todayRevenue || 0).toLocaleString('fr-FR')} GNF`,
+      value: safeData.todayRevenue || 0,
+      format: 'currency' as const,
       change: `${safeData.todayTransactions || 0} transactions`,
       up: true,
       icon: TrendingUp,
       gradient: 'from-amber-500 to-orange-600',
       bg: 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40',
+      badge: null,
     },
     {
       title: 'Utilisateurs',
       value: safeData.userCount || 0,
+      format: 'number' as const,
       change: 'Actifs',
       up: true,
       icon: Users,
       gradient: 'from-violet-500 to-purple-600',
       bg: 'bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40',
+      badge: { text: 'En ligne', variant: 'success' as const },
     },
     {
       title: 'Documents',
       value: safeData.documentCount || 0,
+      format: 'number' as const,
       change: `${safeData.agentCount || 0} agents`,
       up: true,
       icon: FileText,
       gradient: 'from-rose-500 to-pink-600',
       bg: 'bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40',
+      badge: null,
     },
   ];
 
@@ -282,12 +293,25 @@ export default function DashboardView() {
               transition={{ delay: index * 0.05 }}
               whileHover={{ y: -4, transition: { duration: 0.2 } }}
             >
-              <Card className="overflow-hidden card-hover">
-                <CardContent className={`p-4 ${stat.bg}`}>
+              <GlassCard variant="glowing" gradient="primary" className="overflow-hidden">
+                <div className={`p-4 ${stat.bg}`}>
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
-                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
+                        {stat.badge && (
+                          <PremiumBadge variant={stat.badge.variant} size="sm">
+                            {stat.badge.text}
+                          </PremiumBadge>
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold mt-1">
+                        <AnimatedCounter
+                          target={stat.value}
+                          format={stat.format}
+                          duration={1200}
+                        />
+                      </p>
                       <div className="flex items-center gap-1 mt-1">
                         {stat.up ? (
                           <ArrowUpRight className="h-3 w-3 text-emerald-500" />
@@ -303,8 +327,8 @@ export default function DashboardView() {
                       <Icon className="h-5 w-5 text-white" />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </GlassCard>
             </motion.div>
           );
         })}
@@ -353,17 +377,16 @@ export default function DashboardView() {
           transition={{ delay: 0.3 }}
           className="lg:col-span-2"
         >
-          <Card className="glass glow-card">
+          <GlassCard variant="default">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base">Revenus mensuels</CardTitle>
                   <CardDescription>Évolution des revenus sur les 6 derniers mois</CardDescription>
                 </div>
-                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                  <TrendingUp className="h-3 w-3 mr-1" />
+                <PremiumBadge variant="success" size="sm" icon={TrendingUp}>
                   +12.5%
-                </Badge>
+                </PremiumBadge>
               </div>
             </CardHeader>
             <CardContent>
@@ -426,7 +449,7 @@ export default function DashboardView() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </GlassCard>
         </motion.div>
 
         {/* Quick agent access */}
@@ -435,7 +458,7 @@ export default function DashboardView() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <Card className="glass glow-card">
+          <GlassCard variant="default">
             <CardHeader>
               <CardTitle className="text-base">Accès rapide</CardTitle>
               <CardDescription>Vos agents les plus utilisés</CardDescription>
@@ -514,7 +537,7 @@ export default function DashboardView() {
                 })}
               </div>
             </CardContent>
-          </Card>
+          </GlassCard>
         </motion.div>
       </div>
 
@@ -525,7 +548,7 @@ export default function DashboardView() {
         transition={{ delay: 0.5 }}
         className="mt-6"
       >
-        <Card className="glass glow-card">
+        <GlassCard variant="default">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -607,7 +630,7 @@ export default function DashboardView() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </GlassCard>
       </motion.div>
 
       {/* Recent transactions */}
@@ -618,7 +641,7 @@ export default function DashboardView() {
           transition={{ delay: 0.6 }}
           className="mt-6"
         >
-          <Card className="glass glow-card">
+          <GlassCard variant="default">
             <CardHeader>
               <CardTitle className="text-base">Transactions récentes</CardTitle>
               <CardDescription>Les dernières opérations Mobile Money</CardDescription>
@@ -658,7 +681,7 @@ export default function DashboardView() {
                 ))}
               </div>
             </CardContent>
-          </Card>
+          </GlassCard>
         </motion.div>
       )}
     </div>

@@ -85,14 +85,14 @@ export default function MobileNav() {
           aria-label="Plus d'options"
         >
           {/* Background for "more" when a sub-view is active */}
-          {['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks'].includes(currentView) && (
+          {['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks', 'agent-intelligence', 'prospection'].includes(currentView) && (
             <motion.div
               layoutId="mobilenav-bg-more"
               className="absolute inset-x-2 inset-y-1.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl"
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             />
           )}
-          {['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks'].includes(currentView) && (
+          {['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks', 'agent-intelligence', 'prospection'].includes(currentView) && (
             <motion.div
               layoutId="mobilenav-indicator-more"
               className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[3px] bg-emerald-500 rounded-full"
@@ -101,14 +101,14 @@ export default function MobileNav() {
           )}
           <Menu
             className={`h-5 w-5 transition-colors duration-200 relative z-10 ${
-              ['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks'].includes(currentView)
+              ['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks', 'agent-intelligence', 'prospection'].includes(currentView)
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-muted-foreground'
             }`}
           />
           <span
             className={`text-[10px] transition-colors duration-200 relative z-10 ${
-              ['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks'].includes(currentView)
+              ['agents', 'marketplace', 'documents', 'payments', 'settings', 'templates', 'comparison', 'admin', 'billing', 'organizations', 'analytics', 'prompt-generator', 'saas-generator', 'workflows', 'webhooks', 'agent-intelligence', 'prospection'].includes(currentView)
                 ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                 : 'text-muted-foreground font-medium'
             }`}
