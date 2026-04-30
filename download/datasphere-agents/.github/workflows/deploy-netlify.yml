@@ -1,0 +1,90 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    name: Deploy to Netlify
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'https://datasphere-agents.netlify.app' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          NODE_ENV: production
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v3
+        with:
+          publish-dir: '.next'
+          production-branch: main
+          production-deploy: true
+          deploy-message: "Deploy from GitHub Actions - ${{ github.sha }}"
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+          overwrites-pull-request-comment: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: Verify deployment
+        run: |
+          echo "⏳ Waiting for deployment to propagate..."
+          sleep 30
+          
+          HEALTH_URL="${{ secrets.NEXTAUTH_URL || 'https://datasphere-agents.netlify.app' }}/api/health"
+          echo "🏥 Checking health endpoint: $HEALTH_URL"
+          
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+          
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ Deployment verified - health check passed (HTTP $HTTP_STATUS)"
+          else
+            echo "⚠️  Health check returned HTTP $HTTP_STATUS (may need more time to propagate)"
+          fi
+
+      - name: Send deployment notification
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          SHA="${{ github.sha }}"
+          URL="${{ secrets.NEXTAUTH_URL || 'https://datasphere-agents.netlify.app' }}"
+          
+          echo "Deployment $STATUS"
+          echo "SHA: $SHA"
+          echo "URL: $URL"
