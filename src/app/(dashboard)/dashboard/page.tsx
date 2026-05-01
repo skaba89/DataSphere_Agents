@@ -11,6 +11,8 @@ import {
   Bot,
   Settings,
   Zap,
+  AlertTriangle,
+  Database,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -24,6 +26,17 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({ agents: 0, conversations: 0, organizations: 0, unreadNotifications: 0 })
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('User')
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking')
+
+  useEffect(() => {
+    // Check database availability
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => {
+        setDbStatus(data.database === 'connected' ? 'connected' : 'unavailable')
+      })
+      .catch(() => setDbStatus('unavailable'))
+  }, [])
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -116,6 +129,22 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Welcome back, {userName}</p>
       </div>
+
+      {/* Database Status Banner */}
+      {dbStatus === 'unavailable' && (
+        <div className="mb-6 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 flex items-start gap-3">
+          <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center shrink-0">
+            <Database className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Database Unavailable</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              PostgreSQL is not reachable. Some features like authentication and data persistence will not work.
+              Please ensure PostgreSQL is running on localhost:5432.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

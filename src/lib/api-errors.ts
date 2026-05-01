@@ -70,6 +70,14 @@ export class InternalError extends AppError {
   }
 }
 
+export class ServiceUnavailableError extends AppError {
+  constructor(message = 'Service temporarily unavailable. Please try again later.') {
+    super(503, message, 'SERVICE_UNAVAILABLE')
+    this.name = 'ServiceUnavailableError'
+    Object.setPrototypeOf(this, ServiceUnavailableError.prototype)
+  }
+}
+
 export class ValidationError extends AppError {
   public readonly errors: Record<string, string[]>
 

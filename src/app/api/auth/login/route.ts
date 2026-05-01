@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import prisma, { isDatabaseAvailable } from '@/lib/db'
 import { comparePassword, generateTokenPair, generateRandomToken } from '@/lib/auth'
-import { formatErrorResponse, UnauthorizedError, BadRequestError } from '@/lib/api-errors'
+import { formatErrorResponse, UnauthorizedError, BadRequestError, ServiceUnavailableError } from '@/lib/api-errors'
 import { loginSchema } from '@/lib/validations/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    // Check database availability first
+    const dbAvailable = await isDatabaseAvailable()
+    if (!dbAvailable) {
+      throw new ServiceUnavailableError('Database is not available. Please ensure PostgreSQL is running and try again.')
+    }
     const body = await request.json()
     
     // Validate input
