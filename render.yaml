@@ -1,0 +1,68 @@
+# DataSphere Agents - Render Blueprint
+# Architecture: Netlify (Next.js) + Render (PostgreSQL)
+# The Next.js app runs on Netlify and connects to Render's managed PostgreSQL
+
+databases:
+  - name: datasphere-agents-db
+    plan: starter
+    databaseName: datasphere_agents
+    user: datasphere
+    # Allow all IPs — Netlify functions need external access
+    ipAllowList: []
+    # PostgreSQL 15
+    postgresMajorVersion: 15
+
+services:
+  # Migration service — runs Prisma migrations on deploy
+  # This is a one-time job that runs after the database is created
+  - type: pserv
+    name: datasphere-migrations
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: datasphere-agents-db
+          property: connectionString
+      - key: DIRECT_URL
+        fromDatabase:
+          name: datasphere-agents-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+
+  # Optional: Background worker for scheduled tasks
+  # Uncomment if you need cron jobs, email sending, etc.
+  #
+  # - type: worker
+  #   name: datasphere-agents-worker
+  #   runtime: node
+  #   plan: starter
+  #   buildCommand: npm install && npx prisma generate
+  #   startCommand: npm run worker
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: datasphere-agents-db
+  #         property: connectionString
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: REDIS_URL
+  #       sync: false
+
+  # Optional: Cron job for daily cleanup
+  # - type: cron
+  #   name: datasphere-daily-cleanup
+  #   runtime: node
+  #   schedule: "0 2 * * *"  # Every day at 2 AM UTC
+  #   buildCommand: npm install && npx prisma generate
+  #   startCommand: node scripts/daily-cleanup.js
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: datasphere-agents-db
+  #         property: connectionString
+  #     - key: NODE_ENV
+  #       value: production

@@ -1,0 +1,114 @@
+# DataSphere Agents - Netlify Configuration
+# Architecture: Netlify (full Next.js app) + Render (managed PostgreSQL)
+# The @netlify/plugin-nextjs handles SSR, API routes, and static pages
+
+[build]
+  command = "npx prisma generate && npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--prefix=/"
+  # Prisma needs to know where to find the schema
+  PRISMA_SCHEMA_PATH = "prisma/schema.prisma"
+
+# ============================================================
+# Security Headers
+# ============================================================
+
+# Global security headers for all routes
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' https:; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+
+# API-specific headers (no cache, CORS)
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Access-Control-Allow-Origin = "https://datasphere-agents.netlify.app"
+    Access-Control-Allow-Methods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
+    Access-Control-Allow-Credentials = "true"
+    Access-Control-Max-Age = "86400"
+
+# Health check endpoint — allow all origins for monitoring
+[[headers]]
+  for = "/api/health"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Access-Control-Allow-Origin = "*"
+
+# Static assets — aggressive caching with immutable
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Next.js image optimization
+[[headers]]
+  for = "/_next/image*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
+
+# Fonts — long cache
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
+
+# ============================================================
+# Redirects
+# ============================================================
+
+# Clean URL redirects
+[[redirects]]
+  from = "/app"
+  to = "/dashboard"
+  status = 302
+
+[[redirects]]
+  from = "/home"
+  to = "/"
+  status = 302
+
+[[redirects]]
+  from = "/admin"
+  to = "/dashboard"
+  status = 302
+
+# SPA fallback for client-side routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  conditions = {Language = ["en"], Country = ["US"]}
+
+# ============================================================
+# Netlify Functions Configuration
+# ============================================================
+
+[functions]
+  # Increase function timeout for API routes (default is 10s)
+  node_bundler = "esbuild"
+
+[functions."*"]
+  maxDuration = 26
+
+# ============================================================
+# Edge Functions Configuration
+# ============================================================
+# Note: Auth checking is handled by Next.js middleware (src/middleware.ts)
+# Netlify Edge Functions are not needed because @netlify/plugin-nextjs
+# handles middleware conversion automatically
