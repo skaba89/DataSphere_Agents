@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, BadRequestError, ForbiddenError } from '@/lib/api-errors'
 
@@ -14,6 +16,19 @@ export async function GET(request: NextRequest) {
     const activeOnly = searchParams.get('active') === 'true'
 
     if (!organizationId) throw new BadRequestError('organizationId is required')
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const membership = await demo.getOrgMembership(user.userId, organizationId)
+      if (!membership) throw new ForbiddenError('Not a member of this organization')
+
+      let agents = await demo.listAgents(organizationId)
+      if (activeOnly) agents = agents.filter((a: Record<string, unknown>) => a.isActive === true)
+
+      return NextResponse.json({ success: true, data: agents, demoMode: true })
+    }
 
     // Verify user is member of organization
     const membership = await prisma.organizationMember.findUnique({
@@ -61,6 +76,33 @@ export async function POST(request: NextRequest) {
 
     if (!name || !organizationId || !providerId || !model) {
       throw new BadRequestError('name, organizationId, providerId, and model are required')
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const membership = await demo.getOrgMembership(user.userId, organizationId)
+      if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+        throw new ForbiddenError('Only admins can create agents')
+      }
+
+      const result = await demo.createAgent({
+        name,
+        description,
+        organizationId,
+        providerId,
+        model,
+        systemPrompt,
+        temperature: temperature ?? 0.7,
+        maxTokens: maxTokens ?? 2048,
+      })
+
+      if (!result.success) {
+        throw new BadRequestError('Failed to create agent')
+      }
+
+      return NextResponse.json({ success: true, data: result.data, demoMode: true }, { status: 201 })
     }
 
     // Verify user is admin/owner of organization

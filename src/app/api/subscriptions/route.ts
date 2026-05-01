@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
-import { formatErrorResponse, UnauthorizedError, BadRequestError } from '@/lib/api-errors'
+import { formatErrorResponse, UnauthorizedError } from '@/lib/api-errors'
 import { createSubscriptionSchema } from '@/lib/validations/subscription'
 import Stripe from 'stripe'
 
@@ -35,6 +37,27 @@ export async function POST(request: NextRequest) {
     }
 
     const { priceId, organizationId } = result.data
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const subResult = await demo.createSubscription(user.userId, {
+        organizationId: organizationId || '',
+        planId: 'pro',
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          checkoutUrl: subResult.data?.url || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard?checkout=demo`,
+          mode: 'demo',
+          message: 'Running in demo mode. No database available.',
+          subscriptionId: subResult.data?.subscriptionId,
+        },
+        demoMode: true,
+      })
+    }
 
     // Check if Stripe is configured
     if (!process.env.STRIPE_SECRET_KEY) {
@@ -126,6 +149,18 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const organizationId = searchParams.get('organizationId')
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      let subscriptions = await demo.listSubscriptions(user.userId)
+      if (organizationId) {
+        subscriptions = subscriptions.filter((s: Record<string, unknown>) => s.organizationId === organizationId)
+      }
+
+      return NextResponse.json({ success: true, data: subscriptions, demoMode: true })
+    }
 
     const where: Record<string, unknown> = { userId: user.userId }
     if (organizationId) where.organizationId = organizationId

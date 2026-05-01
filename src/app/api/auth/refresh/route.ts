@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import prisma, { isDatabaseAvailable } from '@/lib/db'
 import { verifyToken, generateTokenPair } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError } from '@/lib/api-errors'
+import { getDemoService } from '@/lib/demo-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,48 @@ export async function POST(request: NextRequest) {
       throw new UnauthorizedError('Invalid or expired refresh token')
     }
 
+    // Check database availability — fall back to demo service if unavailable
+    const dbAvailable = await isDatabaseAvailable()
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const demoResult = await demo.refreshAccessToken(refreshToken)
+
+      if (!demoResult.success) {
+        throw new UnauthorizedError(demoResult.message)
+      }
+
+      const tokens = demoResult.data!.tokens
+      const response = NextResponse.json({
+        success: true,
+        data: {
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          },
+          demoMode: true,
+        },
+      })
+
+      // Set updated cookies
+      response.cookies.set('access-token', tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60,
+        path: '/',
+      })
+      response.cookies.set('refresh-token', tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60,
+        path: '/',
+      })
+
+      return response
+    }
+
+    // --- Database path ---
     // Check if refresh token exists in database
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },

@@ -26,14 +26,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({ agents: 0, conversations: 0, organizations: 0, unreadNotifications: 0 })
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('User')
-  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking')
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'demo-mode' | 'unavailable'>('checking')
 
   useEffect(() => {
     // Check database availability
     fetch('/api/health')
       .then(r => r.json())
       .then(data => {
-        setDbStatus(data.database === 'connected' ? 'connected' : 'unavailable')
+        if (data.database === 'connected') setDbStatus('connected')
+        else if (data.database === 'demo-mode') setDbStatus('demo-mode')
+        else setDbStatus('unavailable')
       })
       .catch(() => setDbStatus('unavailable'))
   }, [])
@@ -51,7 +53,7 @@ export default function DashboardPage() {
 
           // Fetch agents for first organization
           if (orgs.length > 0) {
-            const orgId = orgs[0].organization.id
+            const orgId = orgs[0].id || orgs[0].organization?.id
             const [agentsRes, conversationsRes, notifsRes] = await Promise.allSettled([
               fetch(`/api/agents?organizationId=${orgId}`, { credentials: 'include' }),
               fetch('/api/conversations?limit=1', { credentials: 'include' }),
@@ -64,11 +66,11 @@ export default function DashboardPage() {
             }
             if (conversationsRes.status === 'fulfilled') {
               const convData = await conversationsRes.value.json()
-              if (convData.success) setStats(prev => ({ ...prev, conversations: convData.pagination?.total || 0 }))
+              if (convData.success) setStats(prev => ({ ...prev, conversations: convData.pagination?.total || convData.meta?.pagination?.total || 0 }))
             }
             if (notifsRes.status === 'fulfilled') {
               const notifData = await notifsRes.value.json()
-              if (notifData.success) setStats(prev => ({ ...prev, unreadNotifications: notifData.meta?.unreadCount || 0 }))
+              if (notifData.success) setStats(prev => ({ ...prev, unreadNotifications: notifData.meta?.unreadCount || notifData.unreadCount || 0 }))
             }
           }
         }
@@ -131,16 +133,30 @@ export default function DashboardPage() {
       </div>
 
       {/* Database Status Banner */}
+      {dbStatus === 'demo-mode' && (
+        <div className="mb-6 p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 flex items-start gap-3">
+          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
+            <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.5} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Demo Mode</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+              The application is running without a database. Data is stored in memory and will be lost on restart.
+              To connect a real database, set the <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 rounded text-xs">DATABASE_URL</code> environment variable.
+            </p>
+          </div>
+        </div>
+      )}
+
       {dbStatus === 'unavailable' && (
         <div className="mb-6 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 flex items-start gap-3">
           <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center shrink-0">
-            <Database className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Database Unavailable</p>
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-              PostgreSQL is not reachable. Some features like authentication and data persistence will not work.
-              Please ensure PostgreSQL is running on localhost:5432.
+              The database connection failed and demo mode is not available. Please check your configuration.
             </p>
           </div>
         </div>

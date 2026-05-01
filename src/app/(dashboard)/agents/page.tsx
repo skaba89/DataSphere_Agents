@@ -24,6 +24,8 @@ export default function AgentsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [orgId, setOrgId] = useState<string | null>(null)
 
+  const [providerId, setProviderId] = useState<string | null>(null)
+
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -32,8 +34,17 @@ export default function AgentsPage() {
         const userData = await userRes.json()
 
         if (userData.success && userData.data?.organizations?.length > 0) {
-          const firstOrgId = userData.data.organizations[0].organization.id
+          const firstOrg = userData.data.organizations[0]
+          const firstOrgId = firstOrg.id || firstOrg.organization?.id
           setOrgId(firstOrgId)
+
+          // Also fetch providers for this org
+          const agentsRes = await fetch(`/api/agents?organizationId=${firstOrgId}`, { credentials: 'include' })
+          const agentsData = await agentsRes.json()
+          if (agentsData.success && agentsData.data?.length > 0 && agentsData.data[0].provider?.id) {
+            setProviderId(agentsData.data[0].provider.id)
+          }
+
           await fetchAgents(firstOrgId)
         } else {
           setLoading(false)
@@ -87,7 +98,7 @@ export default function AgentsPage() {
           description,
           systemPrompt,
           organizationId: orgId,
-          providerId: 'default', // Will use demo provider
+          providerId: providerId || 'default',
           model: 'gpt-4',
           temperature: 0.7,
           maxTokens: 2048,

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, NotFoundError, ForbiddenError } from '@/lib/api-errors'
 import { updateAgentSchema } from '@/lib/validations/agent'
@@ -21,6 +23,19 @@ export async function GET(
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const agent = await demo.getAgent(id)
+      if (!agent) throw new NotFoundError('Agent')
+
+      const membership = await demo.getOrgMembership(user.userId, agent.organizationId as string)
+      if (!membership) throw new ForbiddenError('Not a member of this organization')
+
+      return NextResponse.json({ success: true, data: agent, demoMode: true })
     }
 
     const agent = await prisma.agent.findUnique({
@@ -86,6 +101,24 @@ export async function PATCH(
       )
     }
 
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const agent = await demo.getAgent(id)
+      if (!agent) throw new NotFoundError('Agent')
+
+      const membership = await demo.getOrgMembership(user.userId, agent.organizationId as string)
+      if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+        throw new ForbiddenError('Only admins can update agents')
+      }
+
+      const updated = await demo.updateAgent(id, result.data)
+      if (!updated) throw new NotFoundError('Agent')
+
+      return NextResponse.json({ success: true, data: updated, demoMode: true })
+    }
+
     // Verify agent exists and user has admin access
     const agent = await prisma.agent.findUnique({
       where: { id },
@@ -142,6 +175,23 @@ export async function DELETE(
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const agent = await demo.getAgent(id)
+      if (!agent) throw new NotFoundError('Agent')
+
+      const membership = await demo.getOrgMembership(user.userId, agent.organizationId as string)
+      if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+        throw new ForbiddenError('Only admins can delete agents')
+      }
+
+      await demo.deleteAgent(id)
+
+      return NextResponse.json({ success: true, data: { message: 'Agent deleted successfully' }, demoMode: true })
     }
 
     // Verify agent exists and user has admin access

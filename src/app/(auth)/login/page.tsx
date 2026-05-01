@@ -131,6 +131,17 @@ export default function LoginPage() {
               Sign up
             </Link>
           </div>
+
+          {/* Demo credentials hint */}
+          <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+            <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Demo Credentials</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Email: <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 rounded">demo@datasphere.agents</code>
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Password: <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 rounded">demo123</code>
+            </p>
+          </div>
         </div>
       </div>
     </div>

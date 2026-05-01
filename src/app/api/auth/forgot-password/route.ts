@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import prisma, { isDatabaseAvailable } from '@/lib/db'
 import { generateRandomToken } from '@/lib/auth'
-import { formatErrorResponse, BadRequestError, NotFoundError } from '@/lib/api-errors'
+import { formatErrorResponse } from '@/lib/api-errors'
 import { forgotPasswordSchema } from '@/lib/validations/auth'
+import { getDemoService } from '@/lib/demo-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +26,22 @@ export async function POST(request: NextRequest) {
 
     const { email } = result.data
 
+    // Check database availability — fall back to demo service if unavailable
+    const dbAvailable = await isDatabaseAvailable()
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const demoResult = await demo.forgotPassword(email)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...demoResult.data,
+          demoMode: true,
+        },
+      })
+    }
+
+    // --- Database path ---
     // Find user (but don't reveal if user exists for security)
     const user = await prisma.user.findUnique({ where: { email } })
 

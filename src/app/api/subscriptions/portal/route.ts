@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isDatabaseAvailable } from '@/lib/db'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, BadRequestError } from '@/lib/api-errors'
 import Stripe from 'stripe'
@@ -15,6 +16,19 @@ export async function POST(request: NextRequest) {
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard?portal=demo`,
+          mode: 'demo',
+        },
+        demoMode: true,
+      })
     }
 
     if (!process.env.STRIPE_SECRET_KEY) {

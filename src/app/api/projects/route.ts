@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, BadRequestError, ForbiddenError } from '@/lib/api-errors'
 
@@ -14,6 +16,19 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
 
     if (!organizationId) throw new BadRequestError('organizationId is required')
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const membership = await demo.getOrgMembership(user.userId, organizationId)
+      if (!membership) throw new ForbiddenError('Not a member of this organization')
+
+      let projects = await demo.listProjects(organizationId)
+      if (status) projects = projects.filter((p: { status: string }) => p.status === status)
+
+      return NextResponse.json({ success: true, data: projects, demoMode: true })
+    }
 
     // Verify membership
     const membership = await prisma.organizationMember.findUnique({
@@ -51,6 +66,18 @@ export async function POST(request: NextRequest) {
     const { name, description, organizationId } = body
 
     if (!name || !organizationId) throw new BadRequestError('name and organizationId are required')
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const membership = await demo.getOrgMembership(user.userId, organizationId)
+      if (!membership) throw new ForbiddenError('Not a member of this organization')
+
+      const project = await demo.createProject({ name, description, organizationId })
+
+      return NextResponse.json({ success: true, data: project, demoMode: true }, { status: 201 })
+    }
 
     // Verify membership
     const membership = await prisma.organizationMember.findUnique({

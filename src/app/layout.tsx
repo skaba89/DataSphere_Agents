@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { DemoModeBanner } from '@/components/demo-mode-banner'
 import './globals.css'
 
 const geistSans = Geist({
@@ -20,6 +21,15 @@ export const metadata: Metadata = {
   description: 'AI-Powered SaaS Platform for Building and Managing Intelligent Agents',
   keywords: ['AI', 'agents', 'SaaS', 'automation', 'machine learning', 'conversational AI'],
   authors: [{ name: 'DataSphere Agents' }],
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/favicon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '512x512', type: 'image/png' },
+    ],
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -50,6 +60,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
         {children}
+        <DemoModeBanner />
       </body>
     </html>
   )

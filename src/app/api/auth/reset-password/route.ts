@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
-import { hashPassword, generateTokenPair } from '@/lib/auth'
+import prisma, { isDatabaseAvailable } from '@/lib/db'
+import { hashPassword } from '@/lib/auth'
 import { formatErrorResponse, BadRequestError } from '@/lib/api-errors'
 import { resetPasswordSchema } from '@/lib/validations/auth'
+import { getDemoService } from '@/lib/demo-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +26,26 @@ export async function POST(request: NextRequest) {
 
     const { token, password } = result.data
 
+    // Check database availability — fall back to demo service if unavailable
+    const dbAvailable = await isDatabaseAvailable()
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const demoResult = await demo.resetPassword(token, password)
+
+      if (!demoResult.success) {
+        throw new BadRequestError(demoResult.message || 'Invalid or expired reset token')
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...demoResult.data,
+          demoMode: true,
+        },
+      })
+    }
+
+    // --- Database path ---
     // Find the reset token
     const resetToken = await prisma.passwordReset.findUnique({ where: { token } })
     if (!resetToken) {

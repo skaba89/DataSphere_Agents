@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, NotFoundError, BadRequestError, ForbiddenError } from '@/lib/api-errors'
 import { chatMessageSchema } from '@/lib/validations/agent'
@@ -44,6 +46,105 @@ export async function POST(
     }
 
     const { content: userMessage } = result.data
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+
+      // Find the agent
+      const agent = await demo.getAgent(agentId)
+      if (!agent) throw new NotFoundError('Agent')
+      if (!(agent as Record<string, unknown>).isActive) throw new BadRequestError('This agent is currently inactive')
+
+      // Verify user has access
+      const membership = await demo.getOrgMembership(user.userId, agent.organizationId as string)
+      if (!membership) throw new ForbiddenError('You do not have access to this agent')
+
+      // Find or create conversation
+      let conversationId = body.conversationId as string | undefined
+      let conversation
+
+      if (conversationId) {
+        conversation = await demo.getConversation(conversationId)
+        if (!conversation || (conversation as Record<string, unknown>).userId !== user.userId) {
+          throw new NotFoundError('Conversation')
+        }
+      } else {
+        conversation = await demo.createConversation(agentId, user.userId, `Chat with ${agent.name}`)
+        conversationId = conversation.id
+      }
+
+      // Save user message
+      await demo.addMessage(conversation.id, 'USER', userMessage)
+
+      // Get existing messages for context
+      const existingMessages = await demo.getConversationMessages(conversation.id)
+
+      // Build messages array for AI
+      const systemMessage = agent.systemPrompt || 'You are a helpful AI assistant.'
+      const aiMessages = [
+        { role: 'system' as const, content: systemMessage },
+        ...existingMessages.map((m: { role: string; content: string }) => ({
+          role: m.role.toLowerCase() as 'user' | 'assistant' | 'system',
+          content: m.content,
+        })),
+      ]
+
+      // Get AI response (already has demo fallback)
+      let assistantContent: string
+
+      try {
+        assistantContent = await getAIResponse(
+          {
+            model: agent.model as string,
+            provider: agent.provider as { type: string; apiKey: string; name: string },
+            temperature: agent.temperature as number,
+            maxTokens: agent.maxTokens as number,
+          },
+          aiMessages
+        )
+      } catch (aiError) {
+        console.error('AI provider error:', aiError)
+        assistantContent = 'I apologize, but I am currently unable to process your request. The AI service may be temporarily unavailable. Please try again in a moment.'
+      }
+
+      // Save assistant message
+      const assistantMessage = await demo.addMessage(conversation.id, 'ASSISTANT', assistantContent)
+
+      // Return as SSE stream
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        start(controller) {
+          const words = assistantContent.split(' ')
+          let index = 0
+
+          const interval = setInterval(() => {
+            if (index < words.length) {
+              const chunk = index === 0 ? words[index] : ' ' + words[index]
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`)
+              )
+              index++
+            } else {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ content: '', done: true, conversationId: conversation.id, messageId: assistantMessage.id, demoMode: true })}\n\n`)
+              )
+              clearInterval(interval)
+              controller.close()
+            }
+          }, 30)
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
+    }
 
     // Find the agent
     const agent = await prisma.agent.findUnique({
@@ -108,7 +209,7 @@ export async function POST(
 
     // Get AI response using z-ai-web-dev-sdk or OpenAI API
     let assistantContent: string
-    let tokensUsed: number | null = null
+    const tokensUsed: number | null = null
 
     try {
       assistantContent = await getAIResponse(agent, aiMessages)

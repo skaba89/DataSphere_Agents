@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
-import { getUserFromRequest } from '@/lib/auth'
+import prisma, { isDatabaseAvailable } from '@/lib/db'
+import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError } from '@/lib/api-errors'
+import { getDemoService } from '@/lib/demo-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,6 @@ export async function POST(request: NextRequest) {
       const accessToken = request.cookies.get('access-token')?.value
       if (accessToken) {
         try {
-          const { verifyToken } = await import('@/lib/auth')
           const payload = verifyToken(accessToken)
           userId = payload.userId
         } catch {
@@ -27,6 +27,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check database availability — fall back to demo service if unavailable
+    const dbAvailable = await isDatabaseAvailable()
+    if (!dbAvailable && userId) {
+      const demo = getDemoService()
+      demo.logout(userId)
+
+      // Build response and clear cookies
+      const response = NextResponse.json({
+        success: true,
+        data: { message: 'Logged out successfully', demoMode: true },
+      })
+
+      response.cookies.set('access-token', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0,
+        path: '/',
+      })
+      response.cookies.set('refresh-token', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0,
+        path: '/',
+      })
+
+      return response
+    }
+
+    // --- Database path ---
     // Delete refresh tokens
     if (userId) {
       await prisma.refreshToken.deleteMany({ where: { userId } }).catch(() => {})

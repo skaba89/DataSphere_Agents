@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, NotFoundError, ForbiddenError } from '@/lib/api-errors'
 
@@ -20,6 +22,17 @@ export async function GET(
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const conversation = await demo.getConversation(id)
+      if (!conversation) throw new NotFoundError('Conversation')
+      if ((conversation as Record<string, unknown>).userId !== user.userId) throw new ForbiddenError('Not your conversation')
+
+      return NextResponse.json({ success: true, data: conversation, demoMode: true })
     }
 
     const conversation = await prisma.conversation.findUnique({
@@ -57,6 +70,19 @@ export async function DELETE(
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const conversation = await demo.getConversation(id)
+      if (!conversation) throw new NotFoundError('Conversation')
+      if ((conversation as Record<string, unknown>).userId !== user.userId) throw new ForbiddenError('Not your conversation')
+
+      await demo.deleteConversation(id)
+
+      return NextResponse.json({ success: true, data: { message: 'Conversation deleted' }, demoMode: true })
     }
 
     const conversation = await prisma.conversation.findUnique({

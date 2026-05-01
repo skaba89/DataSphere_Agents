@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken, hashPassword, comparePassword } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, BadRequestError } from '@/lib/api-errors'
 import { changePasswordSchema } from '@/lib/validations/user'
@@ -34,6 +36,23 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { currentPassword, newPassword } = result.data
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const changeResult = await demo.changePassword(user.userId, currentPassword, newPassword)
+
+      if (!changeResult.success) {
+        throw new BadRequestError(changeResult.message || 'Current password is incorrect')
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: { message: 'Password updated successfully' },
+        demoMode: true,
+      })
+    }
 
     const fullUser = await prisma.user.findUnique({
       where: { id: user.userId },

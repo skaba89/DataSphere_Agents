@@ -7,16 +7,16 @@ describe('Health Check API', () => {
     expect([200, 503]).toContain(response.status)
   })
 
-  it('should return ok or degraded status', async () => {
+  it('should return ok, degraded, or demo status', async () => {
     const response = await GET()
     const data = await response.json()
-    expect(['ok', 'degraded']).toContain(data.status)
+    expect(['ok', 'degraded', 'demo']).toContain(data.status)
   })
 
   it('should include database status', async () => {
     const response = await GET()
     const data = await response.json()
-    expect(['connected', 'unavailable']).toContain(data.database)
+    expect(['connected', 'unavailable', 'demo-mode']).toContain(data.database)
   })
 
   it('should include service name', async () => {

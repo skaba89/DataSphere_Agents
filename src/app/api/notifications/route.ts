@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError, BadRequestError } from '@/lib/api-errors'
 
@@ -14,6 +16,28 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const result = await demo.listNotifications(user.userId, unreadOnly, limit, skip)
+
+      return NextResponse.json({
+        success: true,
+        data: result.data,
+        meta: {
+          unreadCount: result.unreadCount,
+          pagination: {
+            page,
+            limit,
+            total: result.pagination.total,
+            totalPages: Math.ceil(result.pagination.total / limit),
+          },
+        },
+        demoMode: true,
+      })
+    }
 
     const where: Record<string, unknown> = { userId: user.userId }
     if (unreadOnly) where.read = false
@@ -58,6 +82,15 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const { notificationIds, markAll } = body
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      await demo.markNotificationsRead(user.userId, notificationIds, markAll)
+
+      return NextResponse.json({ success: true, message: 'Notifications updated', demoMode: true })
+    }
 
     if (markAll) {
       await prisma.notification.updateMany({

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
+import { isDatabaseAvailable } from '@/lib/db'
+import { getDemoService } from '@/lib/demo-service'
 import { getUserFromRequest, verifyToken } from '@/lib/auth'
 import { formatErrorResponse, UnauthorizedError } from '@/lib/api-errors'
 import { updateProfileSchema } from '@/lib/validations/user'
@@ -16,6 +18,22 @@ export async function GET(request: NextRequest) {
       } else {
         throw new UnauthorizedError()
       }
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const fullUser = await demo.getUser(user.userId)
+      if (!fullUser) throw new UnauthorizedError()
+
+      const organizations = await demo.getUserOrganizations(user.userId)
+
+      return NextResponse.json({
+        success: true,
+        data: { ...fullUser, organizations },
+        demoMode: true,
+      })
     }
 
     const fullUser = await prisma.user.findUnique({
@@ -83,6 +101,16 @@ export async function PATCH(request: NextRequest) {
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Validation failed', details: errors } },
         { status: 422 }
       )
+    }
+
+    const dbAvailable = await isDatabaseAvailable()
+
+    if (!dbAvailable) {
+      const demo = getDemoService()
+      const updated = await demo.updateUser(user.userId, result.data)
+      if (!updated) throw new UnauthorizedError()
+
+      return NextResponse.json({ success: true, data: updated, demoMode: true })
     }
 
     const updated = await prisma.user.update({

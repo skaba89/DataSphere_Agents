@@ -89,6 +89,7 @@ export function middleware(request: NextRequest) {
       '/api/auth/reset-password',
       '/api/auth/verify-email',
       '/api/auth/refresh',
+      '/api/auth/logout',
       '/api/webhooks/stripe',
       '/api/subscriptions/plans',
     ]
