@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import {
+  ArrowLeft,
+  MessageSquare,
+  User,
+  Bot,
+  ArrowRight,
+} from 'lucide-react'
 
 interface Message {
   id: string
@@ -66,18 +73,27 @@ export default function ConversationDetailPage() {
     <div>
       <div className="mb-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-          <Link href="/conversations" className="hover:text-foreground">Conversations</Link>
+          <Link href="/conversations" className="hover:text-foreground inline-flex items-center gap-1">
+            <ArrowLeft className="w-3 h-3" />
+            Conversations
+          </Link>
           <span>/</span>
           <span>{conversation.title || 'Untitled'}</span>
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{conversation.title || 'Untitled Conversation'}</h1>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-primary" strokeWidth={1.5} />
+            </div>
+            <h1 className="text-2xl font-bold">{conversation.title || 'Untitled Conversation'}</h1>
+          </div>
           {conversation.agent && (
             <Link
               href={`/agents/${conversation.agent.id}/chat`}
-              className="text-primary hover:underline text-sm font-medium"
+              className="text-primary hover:underline text-sm font-medium inline-flex items-center gap-1"
             >
               Continue with {conversation.agent.name}
+              <ArrowRight className="w-3 h-3" />
             </Link>
           )}
         </div>
@@ -95,17 +111,36 @@ export default function ConversationDetailPage() {
             className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                message.role === 'USER'
-                  ? 'bg-primary text-primary-foreground rounded-br-md'
-                  : message.role === 'SYSTEM'
-                  ? 'bg-yellow-50 dark:bg-yellow-950/30 rounded-bl-md'
-                  : 'bg-muted rounded-bl-md'
+              className={`flex gap-2.5 max-w-[80%] ${
+                message.role === 'USER' ? 'flex-row-reverse' : 'flex-row'
               }`}
             >
-              <p className="text-xs font-medium mb-1 opacity-70">{message.role}</p>
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              <p className="text-xs opacity-50 mt-1">{new Date(message.createdAt).toLocaleString()}</p>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 ${
+                message.role === 'USER'
+                  ? 'bg-primary text-primary-foreground'
+                  : message.role === 'SYSTEM'
+                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {message.role === 'USER' ? (
+                  <User className="w-3.5 h-3.5" />
+                ) : (
+                  <Bot className="w-3.5 h-3.5" />
+                )}
+              </div>
+              <div
+                className={`rounded-2xl px-4 py-3 ${
+                  message.role === 'USER'
+                    ? 'bg-primary text-primary-foreground rounded-br-md'
+                    : message.role === 'SYSTEM'
+                    ? 'bg-yellow-50 dark:bg-yellow-950/30 rounded-bl-md'
+                    : 'bg-muted rounded-bl-md'
+                }`}
+              >
+                <p className="text-xs font-medium mb-1 opacity-70">{message.role}</p>
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-xs opacity-50 mt-1">{new Date(message.createdAt).toLocaleString()}</p>
+              </div>
             </div>
           </div>
         ))}

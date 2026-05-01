@@ -1,6 +1,86 @@
 'use client'
 
 import Link from 'next/link'
+import {
+  Bot,
+  Zap,
+  Shield,
+  BarChart3,
+  RefreshCw,
+  Link2,
+  Building2,
+  CreditCard,
+  Rocket,
+  ArrowRight,
+  Check,
+  ChevronRight,
+} from 'lucide-react'
+
+const features = [
+  {
+    icon: Bot,
+    title: 'Multi-Provider AI',
+    description: 'Connect OpenAI, Anthropic, Google, or custom LLM providers. Switch models seamlessly.',
+    color: 'text-blue-600 dark:text-blue-400',
+    bg: 'bg-blue-50 dark:bg-blue-950/30',
+  },
+  {
+    icon: Zap,
+    title: 'Real-Time Streaming',
+    description: 'Server-Sent Events streaming for instant AI responses. No waiting for full completions.',
+    color: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-amber-50 dark:bg-amber-950/30',
+  },
+  {
+    icon: Shield,
+    title: 'Enterprise Security',
+    description: 'JWT auth with 2FA/TOTP, role-based access, audit logging, and encryption at rest.',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+  },
+  {
+    icon: BarChart3,
+    title: 'Analytics Dashboard',
+    description: 'Track token usage, costs, latency, and agent performance with real-time metrics.',
+    color: 'text-violet-600 dark:text-violet-400',
+    bg: 'bg-violet-50 dark:bg-violet-950/30',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Workflow Automation',
+    description: 'Build multi-step agent workflows with conditional logic and parallel execution.',
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+  },
+  {
+    icon: Link2,
+    title: 'Integrations & Webhooks',
+    description: 'Connect to Slack, GitHub, Jira, and more. Custom webhooks for any event.',
+    color: 'text-pink-600 dark:text-pink-400',
+    bg: 'bg-pink-50 dark:bg-pink-950/30',
+  },
+  {
+    icon: Building2,
+    title: 'Multi-Tenant',
+    description: 'Organizations, teams, and role-based access control. Isolated data per tenant.',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bg: 'bg-indigo-50 dark:bg-indigo-950/30',
+  },
+  {
+    icon: CreditCard,
+    title: 'Stripe Billing',
+    description: 'Usage-based billing with Stripe. Subscriptions, invoices, and payment management.',
+    color: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-rose-50 dark:bg-rose-950/30',
+  },
+  {
+    icon: Rocket,
+    title: 'Cloud Deploy',
+    description: 'Deploy to Netlify + Render with one click. Docker support for self-hosting.',
+    color: 'text-orange-600 dark:text-orange-400',
+    bg: 'bg-orange-50 dark:bg-orange-950/30',
+  },
+]
 
 export default function LandingPage() {
   return (
@@ -60,15 +140,17 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
                   href="/register"
-                  className="w-full sm:w-auto bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-medium hover:opacity-90 transition-opacity text-lg"
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-medium hover:opacity-90 transition-opacity text-lg inline-flex items-center justify-center gap-2"
                 >
                   Start Free Trial
+                  <ArrowRight className="w-5 h-5" />
                 </Link>
                 <a
                   href="#features"
-                  className="w-full sm:w-auto border border-border px-8 py-3.5 rounded-lg font-medium hover:bg-muted transition-colors text-lg"
+                  className="w-full sm:w-auto border border-border px-8 py-3.5 rounded-lg font-medium hover:bg-muted transition-colors text-lg inline-flex items-center justify-center gap-2"
                 >
                   Explore Features
+                  <ChevronRight className="w-5 h-5" />
                 </a>
               </div>
             </div>
@@ -84,62 +166,21 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: '🤖',
-                title: 'Multi-Provider AI',
-                description: 'Connect OpenAI, Anthropic, Google, or custom LLM providers. Switch models seamlessly.',
-              },
-              {
-                icon: '⚡',
-                title: 'Real-Time Streaming',
-                description: 'Server-Sent Events streaming for instant AI responses. No waiting for full completions.',
-              },
-              {
-                icon: '🔒',
-                title: 'Enterprise Security',
-                description: 'JWT auth with 2FA/TOTP, role-based access, audit logging, and encryption at rest.',
-              },
-              {
-                icon: '📊',
-                title: 'Analytics Dashboard',
-                description: 'Track token usage, costs, latency, and agent performance with real-time metrics.',
-              },
-              {
-                icon: '🔄',
-                title: 'Workflow Automation',
-                description: 'Build multi-step agent workflows with conditional logic and parallel execution.',
-              },
-              {
-                icon: '🔗',
-                title: 'Integrations & Webhooks',
-                description: 'Connect to Slack, GitHub, Jira, and more. Custom webhooks for any event.',
-              },
-              {
-                icon: '🏢',
-                title: 'Multi-Tenant',
-                description: 'Organizations, teams, and role-based access control. Isolated data per tenant.',
-              },
-              {
-                icon: '💳',
-                title: 'Stripe Billing',
-                description: 'Usage-based billing with Stripe. Subscriptions, invoices, and payment management.',
-              },
-              {
-                icon: '🚀',
-                title: 'Cloud Deploy',
-                description: 'Deploy to Netlify + Render with one click. Docker support for self-hosting.',
-              },
-            ].map((feature) => (
-              <div
-                key={feature.title}
-                className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow"
-              >
-                <div className="text-3xl mb-4">{feature.icon}</div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm">{feature.description}</p>
-              </div>
-            ))}
+            {features.map((feature) => {
+              const Icon = feature.icon
+              return (
+                <div
+                  key={feature.title}
+                  className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow group"
+                >
+                  <div className={`w-12 h-12 rounded-lg ${feature.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                    <Icon className={`w-6 h-6 ${feature.color}`} strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                </div>
+              )
+            })}
           </div>
         </section>
 
@@ -213,14 +254,7 @@ export default function LandingPage() {
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-center gap-2 text-sm">
-                      <svg
-                        className="w-4 h-4 text-green-500 shrink-0"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
+                      <Check className="w-4 h-4 text-green-500 shrink-0" strokeWidth={2} />
                       {feature}
                     </li>
                   ))}
@@ -250,9 +284,10 @@ export default function LandingPage() {
               </p>
               <Link
                 href="/register"
-                className="inline-block bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-medium hover:opacity-90 transition-opacity text-lg"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-medium hover:opacity-90 transition-opacity text-lg"
               >
                 Get Started for Free
+                <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
           </div>

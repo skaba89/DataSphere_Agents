@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, Suspense } from 'react'
+import { Lock, KeyRound, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react'
 
 function ResetPasswordForm() {
   const [password, setPassword] = useState('')
@@ -73,17 +74,22 @@ function ResetPasswordForm() {
         </div>
 
         <div className="p-8 rounded-xl border border-border bg-card shadow-lg">
-          <h1 className="text-xl font-bold text-center mb-6">Reset Your Password</h1>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <KeyRound className="w-5 h-5 text-primary" strokeWidth={1.5} />
+            <h1 className="text-xl font-bold">Reset Your Password</h1>
+          </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-sm">
+            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
           )}
 
           {success ? (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 text-sm">
+              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 Your password has been reset successfully.
               </div>
               <Link
@@ -99,42 +105,56 @@ function ResetPasswordForm() {
                 <label htmlFor="password" className="block text-sm font-medium mb-1">
                   New Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={!token}
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={!token}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                    placeholder="••••••••"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">At least 8 characters</p>
               </div>
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
                   Confirm New Password
                 </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={!token}
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    disabled={!token}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                    placeholder="••••••••"
+                  />
+                </div>
               </div>
               <button
                 type="submit"
                 disabled={loading || !token}
-                className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
+                <KeyRound className="w-4 h-4" />
                 {loading ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
           )}
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            <Link href="/login" className="text-primary hover:underline font-medium inline-flex items-center gap-1">
+              <ArrowLeft className="w-3 h-3" />
+              Back to Sign in
+            </Link>
+          </div>
         </div>
       </div>
     </div>

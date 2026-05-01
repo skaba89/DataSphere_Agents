@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import {
+  Monitor,
+  MessageSquare,
+  Building2,
+  Bell,
+  ArrowRight,
+  Bot,
+  Settings,
+  Zap,
+} from 'lucide-react'
 
 interface DashboardStats {
   agents: number
@@ -65,6 +75,41 @@ export default function DashboardPage() {
     fetchDashboard()
   }, [])
 
+  const statCards = [
+    {
+      label: 'Active Agents',
+      value: stats.agents,
+      href: '/agents',
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-50 dark:bg-blue-950/30',
+      icon: Monitor,
+    },
+    {
+      label: 'Conversations',
+      value: stats.conversations,
+      href: '/conversations',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+      icon: MessageSquare,
+    },
+    {
+      label: 'Organizations',
+      value: stats.organizations,
+      href: '/settings',
+      color: 'text-violet-600 dark:text-violet-400',
+      bg: 'bg-violet-50 dark:bg-violet-950/30',
+      icon: Building2,
+    },
+    {
+      label: 'Notifications',
+      value: stats.unreadNotifications,
+      href: '/settings',
+      color: 'text-amber-600 dark:text-amber-400',
+      bg: 'bg-amber-50 dark:bg-amber-950/30',
+      icon: Bell,
+    },
+  ]
+
   return (
     <div>
       <div className="mb-8">
@@ -74,23 +119,27 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Active Agents', value: stats.agents, href: '/agents', color: 'text-blue-600' },
-          { label: 'Conversations', value: stats.conversations, href: '/conversations', color: 'text-green-600' },
-          { label: 'Organizations', value: stats.organizations, href: '/settings', color: 'text-purple-600' },
-          { label: 'Notifications', value: stats.unreadNotifications, href: '/settings', color: 'text-orange-600' },
-        ].map((stat) => (
-          <Link
-            key={stat.label}
-            href={stat.href}
-            className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow"
-          >
-            <p className={`text-2xl font-bold ${stat.color}`}>
-              {loading ? '...' : stat.value}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
-          </Link>
-        ))}
+        {statCards.map((stat) => {
+          const Icon = stat.icon
+          return (
+            <Link
+              key={stat.label}
+              href={stat.href}
+              className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <Icon className={`w-5 h-5 ${stat.color}`} strokeWidth={1.5} />
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <p className="text-2xl font-bold">
+                {loading ? '...' : stat.value}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
+            </Link>
+          )
+        })}
       </div>
 
       {/* Quick Actions */}
@@ -98,17 +147,35 @@ export default function DashboardPage() {
         <div className="p-6 rounded-xl border border-border bg-card">
           <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="space-y-3">
-            <Link href="/agents" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors block">
-              <p className="text-sm font-medium">View Agents</p>
-              <p className="text-xs text-muted-foreground">Manage your AI agents</p>
+            <Link href="/agents" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors flex items-center gap-3 group">
+              <div className="w-8 h-8 bg-blue-50 dark:bg-blue-950/30 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">View Agents</p>
+                <p className="text-xs text-muted-foreground">Manage your AI agents</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
-            <Link href="/conversations" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors block">
-              <p className="text-sm font-medium">Conversations</p>
-              <p className="text-xs text-muted-foreground">View chat history</p>
+            <Link href="/conversations" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors flex items-center gap-3 group">
+              <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <MessageSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Conversations</p>
+                <p className="text-xs text-muted-foreground">View chat history</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
-            <Link href="/settings" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors block">
-              <p className="text-sm font-medium">Settings</p>
-              <p className="text-xs text-muted-foreground">Profile, billing, API keys</p>
+            <Link href="/settings" className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors flex items-center gap-3 group">
+              <div className="w-8 h-8 bg-violet-50 dark:bg-violet-950/30 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Settings className="w-4 h-4 text-violet-600 dark:text-violet-400" strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Settings</p>
+                <p className="text-xs text-muted-foreground">Profile, billing, API keys</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
           </div>
         </div>
@@ -117,21 +184,27 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold mb-4">Getting Started</h2>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
+              <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <Zap className="w-3.5 h-3.5" strokeWidth={2} />
+              </div>
               <div>
                 <p className="text-sm font-medium">Configure an AI Provider</p>
                 <p className="text-xs text-muted-foreground">Add your OpenAI or Anthropic API key in the AI Providers settings</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
+              <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <Bot className="w-3.5 h-3.5" strokeWidth={2} />
+              </div>
               <div>
                 <p className="text-sm font-medium">Create an Agent</p>
                 <p className="text-xs text-muted-foreground">Set up your first AI agent with a custom system prompt</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
+              <div className="w-7 h-7 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
+              </div>
               <div>
                 <p className="text-sm font-medium">Start Chatting</p>
                 <p className="text-xs text-muted-foreground">Begin a conversation with your agent and explore its capabilities</p>

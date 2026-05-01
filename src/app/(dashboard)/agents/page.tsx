@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Monitor, Plus, Search } from 'lucide-react'
 
 interface Agent {
   id: string
@@ -29,7 +30,7 @@ export default function AgentsPage() {
         // Get user's organizations
         const userRes = await fetch('/api/users/me', { credentials: 'include' })
         const userData = await userRes.json()
-        
+
         if (userData.success && userData.data?.organizations?.length > 0) {
           const firstOrgId = userData.data.organizations[0].organization.id
           setOrgId(firstOrgId)
@@ -72,7 +73,7 @@ export default function AgentsPage() {
     // Simple prompt-based agent creation
     const name = prompt('Agent name:')
     if (!name) return
-    
+
     const description = prompt('Description (optional):') || undefined
     const systemPrompt = prompt('System prompt (optional):') || undefined
 
@@ -113,9 +114,10 @@ export default function AgentsPage() {
         </div>
         <button
           onClick={handleCreateAgent}
-          className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
+          className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-2"
         >
-          + Create Agent
+          <Plus className="w-4 h-4" />
+          Create Agent
         </button>
       </div>
 
@@ -152,13 +154,11 @@ export default function AgentsPage() {
             <Link
               key={agent.id}
               href={`/agents/${agent.id}`}
-              className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow"
+              className="p-6 rounded-xl border border-border bg-card hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Monitor className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 </div>
                 <span
                   className={`text-xs px-2 py-1 rounded-full font-medium ${
@@ -185,15 +185,17 @@ export default function AgentsPage() {
 
       {!loading && filteredAgents.length === 0 && (
         <div className="text-center py-12">
+          <Monitor className="w-12 h-12 text-muted-foreground mx-auto mb-4" strokeWidth={1.5} />
           <p className="text-muted-foreground mb-4">
             {agents.length === 0 ? 'No agents yet. Create your first agent!' : 'No agents match the current filter.'}
           </p>
           {agents.length === 0 && (
             <button
               onClick={handleCreateAgent}
-              className="text-primary hover:underline font-medium"
+              className="text-primary hover:underline font-medium inline-flex items-center gap-1"
             >
-              + Create Agent
+              <Plus className="w-4 h-4" />
+              Create Agent
             </button>
           )}
         </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Mail, Lock, UserPlus, AlertCircle, User } from 'lucide-react'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -73,10 +74,14 @@ export default function RegisterPage() {
         </div>
 
         <div className="p-8 rounded-xl border border-border bg-card shadow-lg">
-          <h1 className="text-xl font-bold text-center mb-6">Create your account</h1>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <UserPlus className="w-5 h-5 text-primary" strokeWidth={1.5} />
+            <h1 className="text-xl font-bold">Create your account</h1>
+          </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-sm">
+            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
           )}
@@ -86,63 +91,76 @@ export default function RegisterPage() {
               <label htmlFor="name" className="block text-sm font-medium mb-1">
                 Name
               </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="John Doe"
-              />
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="John Doe"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">
                 Email
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="you@example.com"
-              />
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="you@example.com"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium mb-1">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="••••••••"
+                />
+              </div>
               <p className="text-xs text-muted-foreground mt-1">At least 8 characters</p>
             </div>
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
                 Confirm Password
               </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="••••••••"
+                />
+              </div>
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
+              <UserPlus className="w-4 h-4" />
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { MessageSquare, Search, Trash2, ArrowRight } from 'lucide-react'
 
 interface Conversation {
   id: string
@@ -63,13 +64,14 @@ export default function ConversationsPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6">
+      <div className="mb-6 relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search conversations..."
-          className="w-full max-w-md px-4 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
@@ -92,9 +94,7 @@ export default function ConversationsPage() {
               <Link href={`/conversations/${conv.id}`} className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                    <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
+                    <MessageSquare className="w-5 h-5 text-primary" strokeWidth={1.5} />
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium truncate">{conv.title || 'Untitled Conversation'}</p>
@@ -108,16 +108,18 @@ export default function ConversationsPage() {
                 {conv.agent && (
                   <Link
                     href={`/agents/${conv.agent.id}/chat`}
-                    className="text-xs text-primary hover:underline font-medium"
+                    className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
                   >
                     Continue
+                    <ArrowRight className="w-3 h-3" />
                   </Link>
                 )}
                 <button
                   onClick={() => handleDelete(conv.id)}
-                  className="text-xs text-red-500 hover:underline"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                  title="Delete conversation"
                 >
-                  Delete
+                  <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                 </button>
               </div>
             </div>
@@ -127,12 +129,14 @@ export default function ConversationsPage() {
 
       {!loading && filteredConversations.length === 0 && (
         <div className="text-center py-12">
+          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" strokeWidth={1.5} />
           <p className="text-muted-foreground">
             {conversations.length === 0 ? 'No conversations yet. Start chatting with an agent!' : 'No conversations match your search.'}
           </p>
           {conversations.length === 0 && (
-            <Link href="/agents" className="text-primary hover:underline font-medium mt-2 inline-block">
+            <Link href="/agents" className="text-primary hover:underline font-medium mt-2 inline-flex items-center gap-1">
               Browse Agents
+              <ArrowRight className="w-3 h-3" />
             </Link>
           )}
         </div>

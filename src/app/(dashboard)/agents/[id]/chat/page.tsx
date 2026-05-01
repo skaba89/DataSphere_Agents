@@ -3,6 +3,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  ArrowLeft,
+  MessageSquare,
+  Send,
+  Bot,
+  User,
+} from 'lucide-react'
 
 interface Message {
   id: string
@@ -171,14 +178,17 @@ export default function AgentChatPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Link href={`/agents/${agentId}`} className="text-muted-foreground hover:text-foreground">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+          <Link href={`/agents/${agentId}`} className="text-muted-foreground hover:text-foreground p-1">
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div>
-            <h1 className="text-lg font-bold">{agentName}</h1>
-            <p className="text-xs text-muted-foreground">AI Chat</p>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Bot className="w-4 h-4 text-primary" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold">{agentName}</h1>
+              <p className="text-xs text-muted-foreground">AI Chat</p>
+            </div>
           </div>
         </div>
       </div>
@@ -188,9 +198,7 @@ export default function AgentChatPage() {
         {messages.length === 0 && (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
+              <MessageSquare className="w-8 h-8 text-primary" strokeWidth={1.5} />
             </div>
             <p className="text-muted-foreground">Start a conversation with {agentName}</p>
             <p className="text-xs text-muted-foreground mt-2">Type your message below to begin</p>
@@ -203,13 +211,30 @@ export default function AgentChatPage() {
             className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                message.role === 'USER'
-                  ? 'bg-primary text-primary-foreground rounded-br-md'
-                  : 'bg-muted rounded-bl-md'
+              className={`flex gap-2.5 max-w-[80%] ${
+                message.role === 'USER' ? 'flex-row-reverse' : 'flex-row'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content || (loading && index === messages.length - 1 ? '...' : '')}</p>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 ${
+                message.role === 'USER'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {message.role === 'USER' ? (
+                  <User className="w-3.5 h-3.5" />
+                ) : (
+                  <Bot className="w-3.5 h-3.5" />
+                )}
+              </div>
+              <div
+                className={`rounded-2xl px-4 py-3 ${
+                  message.role === 'USER'
+                    ? 'bg-primary text-primary-foreground rounded-br-md'
+                    : 'bg-muted rounded-bl-md'
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content || (loading && index === messages.length - 1 ? '...' : '')}</p>
+              </div>
             </div>
           </div>
         ))}
@@ -230,12 +255,12 @@ export default function AgentChatPage() {
         <button
           onClick={handleSend}
           disabled={loading || !input.trim()}
-          className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           {loading ? (
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-foreground"></div>
           ) : (
-            'Send'
+            <Send className="w-5 h-5" />
           )}
         </button>
       </div>

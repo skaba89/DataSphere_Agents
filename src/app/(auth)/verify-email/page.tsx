@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { MailCheck, MailX, ArrowRight } from 'lucide-react'
 
 function VerifyEmailForm() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -66,17 +67,16 @@ function VerifyEmailForm() {
           {status === 'success' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <MailCheck className="w-8 h-8 text-green-600 dark:text-green-400" strokeWidth={1.5} />
               </div>
               <h1 className="text-xl font-bold">Email Verified!</h1>
               <p className="text-muted-foreground">{message}</p>
               <Link
                 href="/login"
-                className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
               >
                 Sign in to your account
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           )}
@@ -84,15 +84,13 @@ function VerifyEmailForm() {
           {status === 'error' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <MailX className="w-8 h-8 text-red-600 dark:text-red-400" strokeWidth={1.5} />
               </div>
               <h1 className="text-xl font-bold">Verification Failed</h1>
               <p className="text-muted-foreground">{message}</p>
               <Link
                 href="/login"
-                className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
               >
                 Back to Sign In
               </Link>
