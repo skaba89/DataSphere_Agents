@@ -207,10 +207,15 @@ class DemoService {
   private auditLogs = new Map<string, DemoAuditLog>()
   private apiKeys = new Map<string, DemoApiKey>()
 
-  private initialized = false
+  private initPromise: Promise<void> | null = null
 
   constructor() {
-    this.seed()
+    this.initPromise = this.seed()
+  }
+
+  /** Ensure seed data is ready before any operation */
+  async ready(): Promise<void> {
+    if (this.initPromise) await this.initPromise
   }
 
   // ============================================================
@@ -218,9 +223,6 @@ class DemoService {
   // ============================================================
 
   private async seed() {
-    if (this.initialized) return
-    this.initialized = true
-
     // Admin user
     const adminPasswordHash = await hashPassword('admin123')
     const admin: DemoUser = {
@@ -408,6 +410,7 @@ class DemoService {
   // ============================================================
 
   async register(data: { name?: string; email: string; password: string }) {
+    await this.ready()
     // Check if user exists
     for (const u of this.users.values()) {
       if (u.email === data.email) {
@@ -492,6 +495,7 @@ class DemoService {
   }
 
   async login(email: string, password: string) {
+    await this.ready()
     const user = Array.from(this.users.values()).find(u => u.email === email)
     if (!user || !user.passwordHash) {
       return { success: false, error: 'UNAUTHORIZED', message: 'Invalid email or password' }
@@ -537,6 +541,7 @@ class DemoService {
   }
 
   async logout(userId: string) {
+    await this.ready()
     // Remove all refresh tokens and sessions
     for (const [id, rt] of this.refreshTokens) {
       if (rt.userId === userId) this.refreshTokens.delete(id)
@@ -553,6 +558,7 @@ class DemoService {
   }
 
   async refreshAccessToken(refreshTokenStr: string) {
+    await this.ready()
     const stored = Array.from(this.refreshTokens.values()).find(rt => rt.token === refreshTokenStr)
     if (!stored || stored.expiresAt < new Date()) {
       if (stored) this.refreshTokens.delete(stored.id)
@@ -584,6 +590,7 @@ class DemoService {
   }
 
   async forgotPassword(email: string) {
+    await this.ready()
     const user = Array.from(this.users.values()).find(u => u.email === email)
     if (user) {
       // Invalidate old tokens
@@ -609,6 +616,7 @@ class DemoService {
   }
 
   async resetPassword(token: string, password: string) {
+    await this.ready()
     const reset = Array.from(this.passwordResets.values()).find(pr => pr.token === token)
     if (!reset || reset.used || reset.expiresAt < new Date()) {
       return { success: false, error: 'BAD_REQUEST', message: 'Invalid or expired reset token' }
@@ -632,6 +640,7 @@ class DemoService {
   }
 
   async verifyEmail(token: string) {
+    await this.ready()
     const verification = Array.from(this.emailVerifications.values()).find(ev => ev.token === token)
     if (!verification || verification.expiresAt < new Date()) {
       return { success: false, error: 'BAD_REQUEST', message: 'Invalid or expired verification token' }
@@ -649,6 +658,7 @@ class DemoService {
   // ============================================================
 
   async getUser(userId: string) {
+    await this.ready()
     const user = this.users.get(userId)
     if (!user) return null
     return {
@@ -659,6 +669,7 @@ class DemoService {
   }
 
   async getUserOrganizations(userId: string) {
+    await this.ready()
     const memberOf = Array.from(this.orgMembers.values()).filter(m => m.userId === userId)
     return memberOf.map(m => {
       const org = this.organizations.get(m.organizationId)!
@@ -674,6 +685,7 @@ class DemoService {
   }
 
   async updateUser(userId: string, data: { name?: string; avatar?: string }) {
+    await this.ready()
     const user = this.users.get(userId)
     if (!user) return null
     const updated = { ...user, ...data, updatedAt: new Date() }
@@ -686,6 +698,7 @@ class DemoService {
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    await this.ready()
     const user = this.users.get(userId)
     if (!user || !user.passwordHash) return { success: false, error: 'UNAUTHORIZED', message: 'Invalid current password' }
     const isValid = await comparePassword(currentPassword, user.passwordHash)
@@ -700,6 +713,7 @@ class DemoService {
   // ============================================================
 
   async listOrganizations(userId: string) {
+    await this.ready()
     const memberOf = Array.from(this.orgMembers.values()).filter(m => m.userId === userId)
     return memberOf.map(m => {
       const org = this.organizations.get(m.organizationId)!
@@ -711,6 +725,7 @@ class DemoService {
   }
 
   async createOrganization(userId: string, name: string, slug: string) {
+    await this.ready()
     // Check slug uniqueness
     for (const org of this.organizations.values()) {
       if (org.slug === slug) return { success: false, error: 'CONFLICT', message: 'Slug already taken' }
@@ -730,6 +745,7 @@ class DemoService {
   }
 
   async getOrgMembership(userId: string, orgId: string) {
+    await this.ready()
     return Array.from(this.orgMembers.values()).find(m => m.userId === userId && m.organizationId === orgId) || null
   }
 
@@ -738,6 +754,7 @@ class DemoService {
   // ============================================================
 
   async listAgents(organizationId: string) {
+    await this.ready()
     return Array.from(this.agents.values())
       .filter(a => a.organizationId === organizationId)
       .map(a => ({
@@ -748,6 +765,7 @@ class DemoService {
   }
 
   async getAgent(agentId: string) {
+    await this.ready()
     const agent = this.agents.get(agentId)
     if (!agent) return null
     return {
@@ -762,6 +780,7 @@ class DemoService {
     name: string; description?: string; organizationId: string; providerId: string;
     model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; welcomeMessage?: string
   }) {
+    await this.ready()
     const agent: DemoAgent = {
       id: uid(), name: data.name, description: data.description || null,
       organizationId: data.organizationId, providerId: data.providerId, model: data.model,
@@ -774,6 +793,7 @@ class DemoService {
   }
 
   async updateAgent(agentId: string, data: Record<string, unknown>) {
+    await this.ready()
     const agent = this.agents.get(agentId)
     if (!agent) return null
     const updated = { ...agent, ...data, updatedAt: new Date() } as DemoAgent
@@ -782,6 +802,7 @@ class DemoService {
   }
 
   async deleteAgent(agentId: string) {
+    await this.ready()
     this.agents.delete(agentId)
     // Delete related conversations
     for (const [id, c] of this.conversations) {
@@ -801,10 +822,12 @@ class DemoService {
   // ============================================================
 
   async listProviders(organizationId: string) {
+    await this.ready()
     return Array.from(this.aiProviders.values()).filter(p => p.organizationId === organizationId)
   }
 
   async getProvider(providerId: string) {
+    await this.ready()
     return this.aiProviders.get(providerId) || null
   }
 
@@ -813,6 +836,7 @@ class DemoService {
   // ============================================================
 
   async listConversations(userId: string, agentId?: string, limit = 20, offset = 0) {
+    await this.ready()
     let convs = Array.from(this.conversations.values())
       .filter(c => c.userId === userId)
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -830,6 +854,7 @@ class DemoService {
   }
 
   async getConversation(convId: string) {
+    await this.ready()
     const conv = this.conversations.get(convId)
     if (!conv) return null
     const msgs = Array.from(this.messages.values())
@@ -843,6 +868,7 @@ class DemoService {
   }
 
   async createConversation(agentId: string, userId: string, title?: string) {
+    await this.ready()
     const conv: DemoConversation = {
       id: uid(), agentId, userId, title: title || null,
       createdAt: new Date(), updatedAt: new Date(),
@@ -852,6 +878,7 @@ class DemoService {
   }
 
   async deleteConversation(convId: string) {
+    await this.ready()
     this.conversations.delete(convId)
     for (const [mid, m] of this.messages) {
       if (m.conversationId === convId) this.messages.delete(mid)
@@ -860,6 +887,7 @@ class DemoService {
   }
 
   async addMessage(conversationId: string, role: string, content: string, tokens?: number) {
+    await this.ready()
     const msg: DemoMessage = {
       id: uid(), conversationId, role, content,
       tokens: tokens || null, createdAt: new Date(),
@@ -872,6 +900,7 @@ class DemoService {
   }
 
   async getConversationMessages(conversationId: string) {
+    await this.ready()
     return Array.from(this.messages.values())
       .filter(m => m.conversationId === conversationId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -882,12 +911,14 @@ class DemoService {
   // ============================================================
 
   async listProjects(organizationId: string) {
+    await this.ready()
     return Array.from(this.projects.values())
       .filter(p => p.organizationId === organizationId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
 
   async createProject(data: { name: string; description?: string; organizationId: string }) {
+    await this.ready()
     const project: DemoProject = {
       id: uid(), name: data.name, description: data.description || null,
       organizationId: data.organizationId, status: 'ACTIVE',
@@ -902,6 +933,7 @@ class DemoService {
   // ============================================================
 
   async listNotifications(userId: string, unreadOnly = false, limit = 20, offset = 0) {
+    await this.ready()
     let notifs = Array.from(this.notifications.values())
       .filter(n => n.userId === userId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -913,6 +945,7 @@ class DemoService {
   }
 
   async markNotificationsRead(userId: string, ids?: string[], markAll = false) {
+    await this.ready()
     if (markAll) {
       for (const [id, n] of this.notifications) {
         if (n.userId === userId) this.notifications.set(id, { ...n, read: true })
@@ -931,6 +964,7 @@ class DemoService {
   // ============================================================
 
   async listSubscriptions(userId: string) {
+    await this.ready()
     return Array.from(this.subscriptions.values())
       .filter(s => s.userId === userId)
       .map(s => ({
@@ -940,6 +974,7 @@ class DemoService {
   }
 
   async createSubscription(userId: string, data: { organizationId: string; planId: string }) {
+    await this.ready()
     const planMap: Record<string, { priceId: string; name: string }> = {
       starter: { priceId: 'price_starter_monthly', name: 'Starter' },
       pro: { priceId: 'price_pro_monthly', name: 'Pro' },
@@ -973,6 +1008,7 @@ class DemoService {
   // ============================================================
 
   async listApiKeys(userId: string) {
+    await this.ready()
     return Array.from(this.apiKeys.values()).filter(k => k.userId === userId)
   }
 
@@ -981,6 +1017,7 @@ class DemoService {
   // ============================================================
 
   getStatus() {
+    // Sync method - just return best effort
     return {
       status: 'demo',
       mode: 'Demo Mode — No Database Connected',

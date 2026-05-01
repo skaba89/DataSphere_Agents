@@ -28,11 +28,13 @@ export default prisma
  */
 let lastCheck = 0
 let cachedResult: boolean | null = null
-const CHECK_INTERVAL = 30_000 // 30 seconds
+const CHECK_INTERVAL_ONLINE = 30_000 // 30 seconds when DB is online
+const CHECK_INTERVAL_OFFLINE = 120_000 // 2 minutes when DB is offline (don't hammer)
 
 export async function isDatabaseAvailable(): Promise<boolean> {
   const now = Date.now()
-  if (cachedResult !== null && now - lastCheck < CHECK_INTERVAL) {
+  const interval = cachedResult === false ? CHECK_INTERVAL_OFFLINE : CHECK_INTERVAL_ONLINE
+  if (cachedResult !== null && now - lastCheck < interval) {
     return cachedResult
   }
 
